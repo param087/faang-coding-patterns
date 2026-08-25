@@ -1,0 +1,132 @@
+---
+import Base from '../../layouts/Base.astro'
+import Snippet from '../../components/Snippet.astro'
+import DifficultyMeter from '../../components/DifficultyMeter.astro'
+import CompanyChip from '../../components/CompanyChip.astro'
+import ComplexityBadge from '../../components/ComplexityBadge.astro'
+import solutionsRaw from '../../data/generated/solutions.json'
+import { problemBySlug, askedBy } from '../../lib/problems.ts'
+import { PATTERN_BY_ID } from '../../data/taxonomy.ts'
+import { PATTERN_COMPLEXITY } from '../../lib/complexity.ts'
+import { external, routes } from '../../lib/paths.ts'
+import { markdownToHtml } from '../../lib/markdown.ts'
+import type { SolutionRecord } from '../../../scripts/build-solutions.ts'
+
+export async function getStaticPaths() {
+  const solutions = solutionsRaw as SolutionRecord[]
+  return solutions.map((solution) => ({ params: { slug: solution.slug }, props: { solution } }))
+}
+
+const { solution } = Astro.props
+const problem = problemBySlug.get(solution.slug)
+const pattern = PATTERN_BY_ID.get(solution.pattern)
+const complexity = PATTERN_COMPLEXITY[solution.pattern] ?? 'on'
+const companies = problem ? askedBy(problem).filter((c) => c.company.core) : []
+---
+
+<Base
+  title={problem?.title ?? solution.slug}
+  description={solution.insight}
+>
+  <article class="py-10 lg:py-14">
+    <nav class="text-ink-faint mb-6 text-[12px]" aria-label="Breadcrumb">
+      <a href={routes.patterns()} class="hover:text-ink">Patterns</a>
+      <span class="mx-1.5">/</span>
+      <a href={routes.pattern(solution.pattern)} class="hover:text-ink">{pattern?.name}</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-ink-muted">{problem?.title}</span>
+    </nav>
+
+    <header class="border-line-soft border-b pb-8">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="tabular text-ink-faint text-[13px]">{problem?.id}</span>
+        <h1 class="text-[clamp(1.8rem,4vw,2.75rem)]">{problem?.title}</h1>
+      </div>
+
+      <p class="text-ink-muted mt-4 max-w-[60ch] text-[15px] leading-relaxed">
+        {solution.insight}
+      </p>
+
+      <div class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+        {problem && <DifficultyMeter difficulty={problem.difficulty} />}
+        <ComplexityBadge id={complexity} label={`Time ${solution.time}`} />
+        <ComplexityBadge id={complexity} label={`Space ${solution.space}`} />
+        <a
+          href={external.leetcode(solution.slug)}
+          rel="noopener"
+          class="text-ink-faint hover:text-ink text-[12px] underline underline-offset-2"
+        >
+          Read it on LeetCode →
+        </a>
+        {
+          problem?.video && (
+            <a
+              href={external.youtube(problem.video)}
+              rel="noopener"
+              class="text-ink-faint hover:text-ink text-[12px] underline underline-offset-2"
+            >
+              NeetCode walkthrough →
+            </a>
+          )
+        }
+      </div>
+
+      {
+        problem?.premium && (
+          <p class="border-on2/30 text-ink-muted rounded-card mt-5 border px-4 py-3 text-[13px] leading-relaxed">
+            <strong class="text-on2">LeetCode Premium.</strong> The statement is not public, so
+            the notes below describe the task rather than quoting it.
+          </p>
+        )
+      }
+
+      {
+        companies.length > 0 && (
+          <div class="mt-5 flex flex-wrap items-center gap-2">
+            <span class="text-ink-faint mr-1 text-[11px] tracking-[0.14em] uppercase">
+              Asked at
+            </span>
+            {companies.map((c) => (
+              <CompanyChip companyId={c.company.id} frequency={c.frequency} />
+            ))}
+          </div>
+        )
+      }
+    </header>
+
+    <div class="mt-10 gap-14 lg:grid lg:grid-cols-[minmax(0,68ch)_1fr]">
+      <div class="prose-page min-w-0">
+        {
+          solution.sections.map((section) => (
+            <>
+              <h2>{section.heading}</h2>
+              <Fragment set:html={markdownToHtml(section.body)} />
+            </>
+          ))
+        }
+
+        <h2>The code</h2>
+        <Snippet
+          file={solution.module}
+          symbol={solution.symbol}
+          stripDocstring={!solution.symbol}
+          title="Verified by pytest"
+        />
+      </div>
+
+      <aside class="hidden lg:block">
+        <div class="border-line-soft rounded-card sticky top-20 border p-4">
+          <h2 class="text-ink-faint mb-3 text-[11px] tracking-[0.14em] uppercase">Pattern</h2>
+          <a
+            href={routes.pattern(solution.pattern)}
+            class="spine hover:text-onlogn block py-1 pl-3 text-[14px] transition-colors"
+            style={`--spine-color: var(--color-${complexity})`}
+          >
+            {pattern?.name}
+          </a>
+          <p class="text-ink-muted mt-2 text-[12px] leading-relaxed">{pattern?.tagline}</p>
+        </div>
+      </aside>
+    </div>
+  </article>
+</Base>
