@@ -1,0 +1,150 @@
+---
+id: tries
+title: Tries
+recognition:
+  - 'Repeated <strong>prefix</strong> queries over a fixed dictionary of words.'
+  - 'Autocomplete, spell-check, or "does any stored word start with this".'
+  - 'A word-search problem with <em>many</em> words — one trie beats many searches.'
+  - 'Maximum XOR of a pair — that is the bitwise trie.'
+  - 'Wildcards inside the query string.'
+complexity: 'O(L) per operation, independent of dictionary size'
+template: code/tries.py
+anchors:
+  - implement-trie-prefix-tree
+  - word-search-ii
+  - maximum-xor-of-two-numbers-in-an-array
+related:
+  - string-algorithms
+  - backtracking
+  - design
+  - bit-manipulation
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A trie is a tree keyed by *position*: depth d branches on the d-th character.
+The consequence is the reason to build one — **lookup costs O(L) in the length
+of the query, and does not depend on how many words are stored.** A hash set
+gives you exact lookup at the same cost, but cannot answer prefix questions at
+all.
+
+<Snippet file="code/tries.py" symbol="Trie" title="The template" />
+
+`is_word` is not optional. Without it a trie cannot distinguish "apple is
+stored" from "app is merely on the way to apple", and `search("app")` returns
+the wrong answer. It is the first thing to write and the first thing people
+forget.
+
+A dict of children beats a fixed 26-slot array whenever the alphabet is large
+or the branching is sparse, and costs nothing when it is not. Mention the
+array if the problem promises lowercase ASCII — it is faster in practice — but
+the dict is the safer default.
+
+## When the query has wildcards
+
+<Snippet file="code/tries.py" symbol="WildcardTrie" title="Adding `.` to the query" />
+
+A `.` is what forces recursion. Without wildcards the walk is a loop; with
+them, every child must be tried, so the search branches.
+
+**Be honest about the complexity.** With d wildcards the worst case is
+O(26^d), not O(L). Claiming O(L) for the wildcard version is the mistake the
+interviewer is waiting for.
+
+## The bitwise trie
+
+<Snippet file="code/tries.py" symbol="BitTrie" title="Keying on bits instead of characters" />
+
+The reframing worth carrying away: an integer is a 32-character string over
+the alphabet `{0, 1}`. Insert every number as a path of bits, most significant
+first, and "find the value maximising `x ^ value`" becomes a greedy walk —
+at each level go toward the opposite bit if it exists.
+
+**Why greedy is optimal here:** a differing bit at position i contributes
+`2^i`, which is more than every lower bit combined. So taking the higher bit
+whenever possible can never be beaten. That argument is the answer to "how do
+you know this is optimal", and it is the whole point of the question.
+
+O(32n) — linear in the number of values, with a constant of 32 — against
+O(n²) for the naive all-pairs comparison.
+
+## Pitfalls
+
+- **Missing `is_word`**, as above.
+- **Claiming O(1)**. A trie operation is O(L), not O(1). It is *independent of
+  dictionary size*, which is the useful property, but it is not constant.
+- **Space.** A trie over n words of length L is O(n·L) nodes worst case, and
+  each Python dict node is heavy. If the interviewer asks about memory, the
+  honest answer is that a trie trades a lot of space for prefix queries, and
+  a sorted array with binary search is the compact alternative when you only
+  need lookup.
+- **Building a trie for a single search.** If there is one query, `startswith`
+  is the answer. The trie pays off across many queries or many words.
+- **Not pruning in Word Search II.** Without pruning, the trie gives you
+  nothing over a plain set.
+
+## Anchor walkthroughs
+
+### Implement Trie
+
+**Clarify.** What is the alphabet? Are insertions and searches interleaved?
+Should `search` on a prefix return true? (No — that is `startsWith`, and the
+distinction is the question.)
+
+**The insight.** One node per prefix, one flag marking a terminal word.
+
+**Why it beats a hash set**, said out loud: a set answers `search` in O(L) too,
+but it cannot answer `startsWith` without scanning every key. The trie shares
+prefixes, so the prefix query is free.
+
+**Follow-up:** `delete`. Harder than it looks — you must remove nodes only
+when they have no other children and are not themselves words, which means
+walking back up. Say that before attempting it.
+
+### Word Search II
+
+Find every dictionary word hidden in a character grid.
+
+**The trap.** Running Word Search I once per dictionary word is
+O(words × cells × 4^L). With 3·10⁴ words that is hopeless, and stating the
+number is what motivates the trie.
+
+**The insight.** Walk the **grid once**, carrying a trie pointer. At each cell
+you either have a child for that character or you do not — and if you do not,
+you prune the entire branch immediately, for every word at once. One DFS
+instead of thousands.
+
+**Two optimisations the interviewer will fish for:**
+
+- **Mark words found** on the trie node (or null out the word) so duplicates
+  are not reported twice.
+- **Prune the trie as you go.** Once a leaf's word is found, remove it; if a
+  node ends up with no children, remove it too. Without this, the trie keeps
+  guiding searches down branches that can no longer produce anything, and the
+  worst case is much worse.
+
+**Complexity.** O(cells × 4^L) worst case, but the pruning makes it far better
+in practice — and being precise that it is a *worst case* rather than a
+typical case is the right way to state it.
+
+### Maximum XOR of Two Numbers
+
+**Clarify.** Are values bounded? (Yes, under 2³¹ — which fixes the trie depth
+at 32 and is why the complexity has no log in it.) Non-negative?
+
+**Brute force.** All pairs, O(n²). At n = 2·10⁵ that is 4·10¹⁰.
+
+**The insight.** Build a bitwise trie and query each number against it,
+greedily preferring the opposite bit. The greedy argument above is what makes
+it correct.
+
+**Dry-run** the high bit: for `x = 3` (binary `011`) against a trie containing
+`25` (`11001`), the first level wants a `1` where x has `0` — 25 provides it,
+so the XOR gains the top bit immediately.
+
+**Follow-up:** maximum XOR with a bound (`nums[j] <= m`), which is the same
+trie plus an offline sort so you only insert values below the current bound
+before querying. Recognising that "offline processing" — sorting the queries
+rather than answering them in order — is a general technique worth naming.

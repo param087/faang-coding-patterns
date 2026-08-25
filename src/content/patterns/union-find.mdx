@@ -1,0 +1,156 @@
+---
+id: union-find
+title: Union-Find (DSU)
+recognition:
+  - 'Connectivity that <strong>grows over time</strong> — edges arrive, nothing is removed.'
+  - 'The words <strong>connected</strong>, <strong>groups</strong>, <strong>merge</strong>, <strong>same set</strong>, <strong>provinces</strong>.'
+  - 'Detect the edge that creates a cycle in an undirected graph.'
+  - 'Kruskal — building a minimum spanning tree needs exactly this.'
+  - 'Equivalence: accounts with a shared email, equations like <code>a==b</code>.'
+complexity: 'O(α(n)) per operation — effectively constant'
+template: code/union_find.py
+anchors:
+  - redundant-connection
+  - accounts-merge
+  - number-of-operations-to-make-network-connected
+related:
+  - graph-traversal
+  - minimum-spanning-tree
+  - topological-sort
+  - arrays-hashing
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+DFS answers "are these two nodes connected?" for a **fixed** graph. Union-Find
+answers it while edges are **still arriving**, and answers it in effectively
+constant time.
+
+That distinction is the whole recognition rule. If the graph is given up front
+and you traverse it once, use DFS. If connections keep being added and you
+must answer questions in between, use DSU.
+
+<Snippet file="code/union_find.py" symbol="UnionFind" title="The template" />
+
+Both optimisations are load-bearing and worth naming:
+
+- **Path compression** flattens the tree on every `find`, pointing each node
+  on the path directly at the root.
+- **Union by rank** hangs the shorter tree under the taller one, so the trees
+  never get deep in the first place.
+
+Either alone gives O(log n) amortised. Together they give O(α(n)), where α is
+the inverse Ackermann function — under 5 for any n that fits in the universe.
+Say "effectively constant" and mention the real bound; interviewers like the
+precision but nobody wants the proof.
+
+## The return value is the useful part
+
+`union` returning `False` means "these were already connected", which is
+exactly **"this edge closes a cycle"**. That single boolean is the answer to:
+
+| Problem | Read `union() == False` as |
+| --- | --- |
+| Redundant Connection | this is the extra edge |
+| Graph Valid Tree | not a tree |
+| Kruskal's MST | skip this edge |
+| Number of Provinces | (count components instead) |
+
+<Snippet file="code/union_find.py" symbol="find_redundant_connection" title="Cycle detection for free" />
+
+## Counting components
+
+<Snippet file="code/union_find.py" symbol="valid_tree" title="Two facts force a tree" />
+
+Worth reading closely because it is a nice piece of reasoning rather than an
+algorithm. A graph is a tree iff it is **connected** and has **exactly n − 1
+edges**. Check the edge count first — it is O(1) and rejects most inputs —
+then verify no edge closes a cycle. Those two facts together *force*
+connectivity, so no separate connectivity pass is needed.
+
+`[[0,1],[2,3]]` with n = 4 has the right edge count and is not connected —
+that is the case which proves the count alone is insufficient, and it is in
+the test suite for that reason.
+
+## Pitfalls
+
+- **Forgetting path compression.** Without it, adversarial input builds a
+  linked list and every operation is O(n).
+- **Recursive `find`.** Elegant, but it recurses to the depth of the tree,
+  which on unoptimised input is n. The iterative two-pass version above has no
+  such limit.
+- **Off-by-one on node ids.** Many problems are 1-indexed; size the parent
+  array `n + 1` and say so.
+- **Non-integer nodes.** Emails, strings, coordinates. Map them to indices
+  first with a dict, or make `parent` a dict. Do not try to hash strings into
+  an array.
+- **Using DSU when the graph is static.** A single DFS is simpler and just as
+  fast. DSU earns its keep when connectivity is dynamic.
+- **DSU cannot un-merge.** If the problem removes edges, this is the wrong
+  structure — that needs a link-cut tree or offline processing in reverse.
+
+## Anchor walkthroughs
+
+### Redundant Connection
+
+**Clarify.** Is the graph undirected? (The directed version, Redundant
+Connection II, is a genuinely harder problem.) Is it guaranteed to have
+exactly one extra edge? If several answers exist, which is wanted? (The one
+appearing last in the input.)
+
+**The insight.** Add edges one at a time. The first edge whose endpoints are
+already connected is the one that closes the cycle — and because you process
+in input order, it is automatically the last such edge.
+
+**Why DSU rather than DFS:** you could DFS before each insertion to test
+connectivity, which is O(V·E). DSU makes each test effectively O(1), so the
+whole thing is O(E).
+
+**Dry-run** `[[1,2],[1,3],[2,3]]`. Union(1,2) succeeds. Union(1,3) succeeds.
+Union(2,3) — both already in the same set — returns False, so `[2,3]` is the
+answer.
+
+### Accounts Merge
+
+The problem that shows DSU is about **equivalence**, not just graphs.
+
+**Clarify.** Do two accounts merge if they share *any* email? (Yes.) Can the
+same name belong to different people? (Yes — which is why you must union on
+emails, not names. That is the trap.) Must the output emails be sorted?
+(Yes.)
+
+**The insight.** Emails are the nodes. Within one account, union every email
+with the first one. Accounts sharing any email end up in the same set
+transitively, without you ever comparing accounts pairwise.
+
+**The mapping step.** Emails are strings, so keep `email → index` and
+`email → name` dicts. Building those cleanly is half the code.
+
+**Complexity.** O(N·L·α) plus the final sort, where N is the number of emails.
+
+**Why not DFS?** You can — build a graph of email adjacencies and flood-fill
+it. Both are correct; DSU is shorter and expresses "these are the same
+person" more directly. Being able to say which you would pick, and why, is
+the answer they want.
+
+### Number of Operations to Make Network Connected
+
+**Clarify.** Can a cable be moved from anywhere to anywhere? Is the input
+guaranteed to have no duplicate connections?
+
+**The insight — two independent counts.** You need `components − 1` cables to
+join everything. You have `edges − (n − components)` redundant cables
+available, which is exactly the number of `union` calls that returned False.
+So the answer exists iff `edges >= n − 1`, and then it is `components − 1`.
+
+**The elegant part:** checking `len(connections) >= n - 1` up front handles
+feasibility, and then the redundant edges are guaranteed sufficient. You never
+have to count them explicitly, which surprises people.
+
+**Dry-run** n = 4, `[[0,1],[0,2],[1,2]]`. Three edges, three nodes joined into
+one component plus an isolated node 3 — so 2 components, and one redundant
+edge (the third). Answer 1. Then try n = 6 with the same edges: 3 components
+after connecting {0,1,2}, plus nodes 3, 4, 5 → 4 components, needing 3 cables,
+but only 1 is spare and `3 < 5`, so it returns −1.

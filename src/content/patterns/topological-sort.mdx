@@ -1,0 +1,158 @@
+---
+id: topological-sort
+title: Topological Sort & Cycle Detection
+recognition:
+  - '"Do B only after A" — courses, builds, tasks, package installs.'
+  - 'The words <strong>prerequisite</strong>, <strong>dependency</strong>, <strong>ordering</strong>, <strong>schedule</strong>.'
+  - 'You must either produce a valid order <em>or</em> prove none exists.'
+  - 'A directed graph, and the question is whether it has a cycle.'
+  - 'Deriving an ordering from comparisons — the alien-alphabet shape.'
+complexity: 'O(V + E)'
+template: code/topological_sort.py
+anchors:
+  - course-schedule-ii
+  - alien-dictionary
+  - minimum-height-trees
+related:
+  - graph-traversal
+  - union-find
+  - advanced-graphs
+  - dp-advanced
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Any "do B only after A" question is a directed graph, and the answer is either
+a valid ordering or a proof that none exists. **Kahn's algorithm gives both at
+once**, which is why it is the one to reach for.
+
+<Snippet file="code/topological_sort.py" symbol="topological_order" title="Kahn's algorithm" />
+
+Start with everything that has no prerequisite. Emit it, and decrement its
+dependants — any that reach zero are now ready. Repeat.
+
+The termination check is the elegant part: **if fewer than n nodes came out,
+the leftovers are in a cycle.** No separate cycle-detection pass is needed,
+because a node in a cycle can never reach indegree zero. That single `len`
+comparison is the whole of Course Schedule I.
+
+## The DFS alternative
+
+<Snippet file="code/topological_sort.py" symbol="has_cycle_directed" title="Three-colour DFS" />
+
+Three states, and conflating two of them is the classic bug:
+
+- **0, unvisited** — not seen.
+- **1, on the current path** — being explored right now.
+- **2, finished** — fully explored, no cycle through it.
+
+Meeting a node in state **1** means you have looped back onto your own path:
+a cycle. Meeting a node in state **2** is fine — it is a shared dependency,
+not a cycle. Using a single `visited` boolean cannot tell them apart and
+reports cycles that do not exist. A diamond (`0→1→3`, `0→2→3`) is the input
+that exposes it.
+
+DFS also produces a topological order — reverse the finish order — but Kahn is
+easier to get right under pressure and gives the cycle check for free.
+
+## When the graph is the problem
+
+<Snippet file="code/topological_sort.py" symbol="alien_order" title="Alien Dictionary" />
+
+Two thirds of this problem is **building the graph**, and that is deliberate.
+The sort is fifteen lines you already know; deriving the edges is where the
+thinking is.
+
+Two rules, both easy to miss:
+
+- Only the **first differing character** between adjacent words carries
+  information. After it, the ordering says nothing — `break` immediately.
+- `["abc", "ab"]` is **invalid input**, not a no-op. A word cannot precede its
+  own prefix in a sorted list. Missing this check returns a plausible ordering
+  for impossible input, and it is the test case that fails.
+
+## Pitfalls
+
+- **Edge direction.** LeetCode's Course Schedule gives `[a, b]` meaning "take
+  b before a", which is an edge **b → a**. Reversing it produces a valid-looking
+  answer to the wrong question. Write the direction down before coding.
+- **Single `visited` flag** in the DFS version.
+- **Assuming a unique answer.** Most of these graphs admit several valid
+  orders; if the problem wants a specific one (lexicographically smallest),
+  swap the queue for a heap.
+- **Disconnected components.** Kahn handles them naturally; a DFS must loop
+  over every unvisited node.
+- **Self-loops.** A node depending on itself is a cycle of length one, and
+  indegree never reaches zero. It works correctly, but check the input allows
+  it.
+
+## Anchor walkthroughs
+
+### Course Schedule II
+
+**Clarify.** Is the pair `[a, b]` "a before b" or "b before a"? (Ask — it is
+the difference between right and wrong, and the naming is genuinely
+ambiguous.) Return any valid order, or a specific one? What should an
+impossible schedule return — empty list, or exception?
+
+**The insight.** Prerequisites are a DAG; a valid schedule is a topological
+order; impossible means a cycle.
+
+**Complexity.** O(V + E). Every node is enqueued once and every edge relaxed
+once.
+
+**Dry-run** `n = 4`, prerequisites `[[1,0],[2,0],[3,1],[3,2]]` — take 0 first,
+then 1 and 2 in either order, then 3. Point out that two valid answers exist,
+because interviewers sometimes have one in mind and it is worth flagging that
+both are correct.
+
+**Then run the cycle case** `[[1,0],[0,1]]` and show that neither node ever
+reaches indegree zero, so the output is short and you return `[]`.
+
+**Follow-up:** the lexicographically smallest valid order — replace the deque
+with a heap, O((V + E) log V).
+
+### Alien Dictionary
+
+**Clarify.** Is the input guaranteed to be a valid sorted list under *some*
+alphabet? (Not necessarily — you must detect both the prefix violation and a
+cycle.) Should letters that appear but are unconstrained be included? (Yes,
+all of them.) Is the answer unique?
+
+**The structure.** Build the graph from adjacent pairs, then Kahn. Say that
+split up front — it makes the size of the problem obvious and buys you time.
+
+**The two rules** above, stated explicitly before coding.
+
+**Dry-run** `["wrt","wrf","er","ett","rftt"]`. `wrt`/`wrf` gives t→f.
+`wrf`/`er` gives w→e. `er`/`ett` gives r→t. `ett`/`rftt` gives e→r. Chain:
+w→e→r→t→f. Answer `"wertf"`.
+
+**Then run `["abc","ab"]`** and confirm the empty string.
+
+**Follow-up:** ambiguity — if several valid alphabets exist, how do you know?
+The order is unique exactly when at every step the ready queue holds exactly
+one letter. That is a nice thing to be able to detect in one line.
+
+### Minimum Height Trees
+
+Looks unrelated, and is a lovely variation.
+
+**The question.** Root an undirected tree so its height is minimised; return
+every such root.
+
+**The naive answer.** BFS from every node, O(V²). Correct, and too slow.
+
+**The insight.** The answer is the **centre** of the tree, and there are at
+most two centres. Find them by repeatedly stripping the leaves — the same
+indegree-zero peeling as Kahn, but on an undirected graph where "degree 1"
+replaces "indegree 0". Whatever survives the last round is the centre.
+
+**Why at most two:** if there were three, two of them would be equidistant
+from a third along a path, which would make a longer path than the diameter —
+a contradiction. Being able to give that argument is what separates recalling
+the trick from understanding it.
+
+**Complexity.** O(V + E), one peel per node.

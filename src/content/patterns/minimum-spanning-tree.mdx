@@ -1,0 +1,146 @@
+---
+id: minimum-spanning-tree
+title: Minimum Spanning Tree
+recognition:
+  - '<strong>Connect everything</strong> for the least total cost.'
+  - 'The words <strong>connect all</strong>, <strong>minimum cost to link</strong>, <strong>wire up</strong>, <strong>supply every village</strong>.'
+  - 'An undirected weighted graph, and you need a subset of edges, not a path.'
+  - 'Points on a plane where every pair is implicitly an edge.'
+  - 'The answer is a total, not a route.'
+complexity: 'O(E log E) Kruskal · O(E log V) Prim'
+template: code/minimum_spanning_tree.py
+anchors:
+  - min-cost-to-connect-all-points
+  - find-critical-and-pseudo-critical-edges-in-minimum-spanning-tree
+related:
+  - union-find
+  - shortest-paths
+  - greedy
+  - heaps
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+An MST connects every node with the minimum total edge weight. The
+distinction that matters, and that people blur:
+
+> **Shortest path** minimises the cost between *two* nodes.
+> **Spanning tree** minimises the total cost of connecting *all* of them.
+
+They are different problems with different answers. The MST does not
+generally contain the shortest path between two nodes, and saying so if the
+interviewer probes is a good sign.
+
+Both standard algorithms are greedy, and both are correct because of the same
+fact — the **cut property**: for any way of splitting the nodes into two
+groups, the cheapest edge crossing that split belongs to some MST. Every
+greedy step of both algorithms is an application of it.
+
+## Kruskal
+
+<Snippet file="code/minimum_spanning_tree.py" symbol="kruskal" title="Sort the edges, skip the cycles" />
+
+Sort every edge by weight and take it unless it closes a cycle.
+[Union-Find](../union-find/) *is* the cycle test — `union` returning `False`
+means both endpoints were already connected — which is why the two topics are
+always taught together.
+
+The early exit at `n - 1` edges matters on dense graphs: a spanning tree has
+exactly n − 1 edges, so once you have them you can stop sorting through the
+rest.
+
+If fewer than n − 1 edges were used, the graph was disconnected and no
+spanning tree exists. Return −1 or raise, but handle it — several LeetCode
+variants include disconnected input.
+
+## Prim
+
+<Snippet file="code/minimum_spanning_tree.py" symbol="prim" title="Grow one tree" />
+
+Grow a single tree from an arbitrary start, always absorbing the cheapest edge
+that reaches somewhere new.
+
+**The visited check happens on pop, not on push.** An edge can be queued and
+then its endpoint absorbed by a cheaper route before that entry surfaces —
+the same lazy-deletion situation as [Dijkstra](../shortest-paths/), and the
+same fix.
+
+## When Prim is the only reasonable choice
+
+<Snippet file="code/minimum_spanning_tree.py" symbol="min_cost_connect_points" title="An implicit complete graph" />
+
+Min Cost to Connect All Points gives you n points on a plane where **every
+pair is an edge**. That is n²/2 edges — at n = 1000, half a million. Kruskal
+would have to materialise and sort all of them.
+
+Prim never needs the edge list. It computes distances lazily, keeping only
+"cheapest known distance from the tree to each outside node", which is O(n)
+memory and O(n²) time. That is the reason to know Prim rather than just
+Kruskal, and it is exactly the situation the problem is built around.
+
+## Pitfalls
+
+- **Confusing MST with shortest path.** Different problems.
+- **Forgetting disconnected input.** Check the edge count used.
+- **Kruskal without union-by-rank** degrades toward O(n) per find.
+- **Materialising an implicit complete graph.** Use Prim.
+- **Directed graphs.** MST is defined on undirected graphs. The directed
+  analogue is the minimum arborescence (Chu–Liu/Edmonds), which is not a
+  coding-round question — but knowing the name and that it is different is
+  worth one sentence.
+- **Equal-weight edges.** The MST is not unique when weights tie. If the
+  problem asks for a specific tree, it needs a tie-break rule; ask.
+
+## Anchor walkthroughs
+
+### Min Cost to Connect All Points
+
+**Clarify.** Is the distance Manhattan or Euclidean? (Manhattan on LeetCode —
+and it means integer arithmetic, no floating point.) May points coincide? Is
+n small enough for an O(n²) algorithm? (n ≤ 1000, so yes — 10⁶ operations.)
+
+**The insight.** Every pair of points is an edge, so this is an MST on a
+complete graph. State that reframing first; it is the whole solve.
+
+**Choosing the algorithm.** Kruskal needs all n²/2 edges sorted: about 5·10⁵
+edges at n = 1000, which fits but is wasteful. Prim with the dense-graph
+formulation is O(n²) with O(n) memory and no edge list at all. Say the
+comparison out loud — choosing deliberately between two correct algorithms is
+the senior signal here.
+
+**Dry-run** the sample `[[0,0],[2,2],[3,10],[5,2],[7,0]]` → 20. Trace the
+first two absorptions: from (0,0) the nearest is (2,2) at distance 4, then
+from {(0,0),(2,2)} the nearest outside point is (5,2) at 3.
+
+**Complexity.** O(n²) time, O(n) space.
+
+### Find Critical and Pseudo-Critical Edges in an MST
+
+A Hard, and a genuinely good test of whether you understand what an MST *is*
+rather than how to compute one.
+
+**The definitions.** A **critical** edge appears in *every* MST — removing it
+raises the total cost. A **pseudo-critical** edge appears in *some* MST but
+not all — forcing it in does not raise the cost.
+
+**The insight.** Compute the baseline MST weight once. Then for each edge:
+
+- **Exclude it** and recompute. If the weight goes up (or the graph becomes
+  disconnected), the edge is **critical**.
+- **Force it in** — union its endpoints first, then run Kruskal — and
+  recompute. If the weight matches the baseline, it is **pseudo-critical**.
+
+**Complexity.** O(E² α) — one Kruskal per edge, twice. With E ≤ 200 that is
+fine, and the constraint is telling you this brute-force-per-edge approach is
+intended.
+
+**Why this works** is worth stating: an edge is in every MST exactly when the
+graph is strictly worse without it, and in some MST exactly when it can be
+included at no extra cost. Both definitions translate directly into a
+recomputation, which is why the solution is short despite the problem being
+labelled Hard.
+
+**The detail:** track original indices before sorting, or you return positions
+in the sorted edge list rather than the input.

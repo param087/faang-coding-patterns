@@ -1,0 +1,175 @@
+---
+id: heaps
+title: Heaps & Priority Queues
+recognition:
+  - 'The words <strong>top k</strong>, <strong>k largest</strong>, <strong>k closest</strong>, <strong>k-th smallest</strong>.'
+  - 'Merging k sorted things.'
+  - 'A running <strong>median</strong>, or any order statistic over a stream.'
+  - 'You need repeated "give me the smallest remaining" from a set that keeps changing.'
+  - 'Scheduling: always take the task that finishes soonest, or expires first.'
+complexity: 'O(n log k) for top-k, O(log n) per operation'
+template: code/heaps.py
+anchors:
+  - k-closest-points-to-origin
+  - find-median-from-data-stream
+  - task-scheduler
+related:
+  - sorting
+  - divide-and-conquer
+  - intervals
+  - ordered-set
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A heap gives you the extreme element in O(1) and maintains that property in
+O(log n) per change. It does **not** give you sorted order, arbitrary lookup,
+or deletion of a specific element — and knowing what it cannot do is what
+tells you when to reach for something else.
+
+Three uses cover nearly every question.
+
+## Top k — and the inversion that catches people
+
+<Snippet file="code/heaps.py" symbol="k_largest" title="Keep k, evict the weakest" />
+
+To keep the **largest** k you use a **min**-heap. That feels backwards for
+about ten seconds, and then it is obvious: the root of a min-heap is the
+weakest survivor, so it is exactly the thing you want to evict when a better
+candidate arrives.
+
+O(n log k) against O(n log n) for a full sort. When k is small — and it
+usually is — that is a real win, and it is the reason the interviewer asked
+for *k* rather than "sorted".
+
+The alternative is [quickselect](../divide-and-conquer/) at O(n) expected.
+Offer it: "if I only need the k largest as a set and not in order,
+quickselect is O(n) average, though O(n²) worst case." That comparison is the
+answer to "can you do better than n log k".
+
+<Snippet file="code/heaps.py" symbol="k_closest_to_origin" title="k closest — two details" />
+
+Two things worth saying while writing it: compare **squared** distances, since
+`sqrt` is monotone and costs precision for nothing; and to keep the k
+*smallest* you now need a **max**-heap, which in Python means negating.
+
+## Merging k streams
+
+<Snippet file="code/heaps.py" symbol="merge_k_sorted" title="One candidate per list" />
+
+The heap holds only the current head of each list, so it never exceeds k
+entries — that is what makes it O(N log k) rather than O(N log N). Pushing
+everything and sorting is simpler and usually acceptable; the heap is the
+answer when the lists are streams you cannot materialise.
+
+The tuple needs the list index as a tie-break, or Python will try to compare
+the payloads when two values are equal and raise a `TypeError`. That crash is
+the most common bug in this problem.
+
+## Two heaps facing each other
+
+<Snippet file="code/heaps.py" symbol="MedianFinder" title="Running median" />
+
+The idiom worth memorising. A max-heap holds the smaller half, a min-heap the
+larger half, and the median is at their boundary. Keep the sizes within one of
+each other.
+
+**The one-line insert** is the part that looks like magic:
+`heappush(low, -heappushpop(high, value))`. Pushing through the *other* heap
+first is what guarantees correctness — a value must be compared against the
+opposite side before it settles, or you can end up with a large value stuck in
+the small half.
+
+## What a heap cannot do
+
+This is the most useful thing on the page, because it tells you when to stop.
+
+- **No arbitrary deletion.** You cannot remove a specific non-root element in
+  O(log n) with `heapq`. The standard workaround is **lazy deletion**: push
+  `(value, expiry)` and discard stale roots on pop. That is how the
+  [skyline problem](../intervals/) and sliding-window-median get solved.
+- **No neighbour queries.** "The largest key at most X" needs an
+  [ordered set](../ordered-set/), not a heap.
+- **No sorted iteration.** `heap[1:]` is not sorted; only `heap[0]` is
+  meaningful.
+
+## Pitfalls
+
+- **`heapq` is min-only.** Negate for a max-heap, and negate again on the way
+  out. Say you are doing it, because silently negated values are hard to read.
+- **Tuple comparison crashes** on unorderable payloads. Add an index
+  tie-break.
+- **`heapify` is O(n)**, not O(n log n). Building from a list is cheaper than
+  n pushes, and knowing that is a nice detail.
+- **`heappushpop` versus `heapreplace`.** The first pushes then pops (so the
+  new item can be returned immediately); the second pops then pushes. They
+  differ when the new item is smaller than the root.
+- **Reaching for a heap when a sort would do.** If the whole collection is
+  available up front and you need everything in order, sort it.
+
+## Anchor walkthroughs
+
+### K Closest Points to Origin
+
+**Clarify.** Is the answer order significant? (Usually not.) Are duplicates
+possible? Is k guaranteed at most n?
+
+**Three solutions, in increasing sophistication** — give the ladder, it reads
+much better than jumping to one:
+
+1. Sort by distance, take k. O(n log n).
+2. Max-heap of size k. O(n log k).
+3. Quickselect. O(n) expected, O(n²) worst.
+
+**The detail.** Squared distance, no `sqrt`.
+
+**When to prefer which:** heap when k ≪ n or the input is a stream;
+quickselect when everything is in memory and you want the best average; sort
+when n is small and clarity wins.
+
+### Find Median from Data Stream
+
+**Clarify.** Are values integers or floats? Bounded range? Is `findMedian`
+called after every insert or occasionally? (If values are bounded small
+integers, a counting array beats both heaps — worth asking.)
+
+**The naive answer.** Keep a sorted list and insert with `bisect`: O(log n) to
+find the position but O(n) to shift. Say this and why it fails.
+
+**The insight.** You do not need the whole thing sorted — only the boundary.
+Two heaps hold the two halves and the median sits at their meeting point.
+
+**Dry-run** 1, 2, 3, 0. After 1: low = [1], median 1. After 2: low = [1],
+high = [2], median 1.5. After 3: low = [1,2], high = [3], median 2. After 0:
+low = [0,1], high = [2,3], median 1.5. Check the rebalance fires on the third
+insert.
+
+**Follow-ups they actually ask:** "all values are in [0, 100]" → counting
+array, O(1) insert, O(100) median. "99% of values are in [0, 100]" → counting
+array plus two overflow lists. Both reward asking about the range up front.
+
+### Task Scheduler
+
+**Clarify.** Must the output be an actual schedule, or only its length? (Only
+the length, which is what makes the formula possible.) Can tasks be reordered
+freely? Is the cooldown between *identical* tasks only?
+
+**The trap.** It looks like a simulation with a heap and a cooldown queue —
+and that works, and is a fine answer. But there is a closed form, and finding
+it is the point.
+
+**The insight.** The most frequent task defines the skeleton: `maxCount - 1`
+gaps, each of length `cooldown + 1`, plus the tasks tied for most frequent at
+the end. If there are enough other distinct tasks to fill every idle slot,
+there is no idling at all and the answer is just `len(tasks)`.
+
+**That `max(len(tasks), skeleton)`** is the whole insight compressed into one
+line. Explain both branches: the skeleton dominates when one task is very
+frequent, `len(tasks)` dominates when the work is spread out.
+
+**Dry-run** `["A","A","A","B","B","B"], n = 2` → skeleton = 2·3 + 2 = 8.
+Then `["A","A","A","B","C","D","E","F","G"], n = 2` → skeleton = 2·3 + 1 = 7,
+but there are 9 tasks, so the answer is 9. The second case is the one that
+catches a formula written without the `max`.

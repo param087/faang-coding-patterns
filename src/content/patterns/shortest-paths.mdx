@@ -1,0 +1,180 @@
+---
+id: shortest-paths
+title: Shortest Paths
+recognition:
+  - 'Edges have <strong>weights</strong> — cost, time, distance, probability.'
+  - 'The words <strong>cheapest</strong>, <strong>fastest</strong>, <strong>minimum cost</strong> on a weighted graph.'
+  - 'A constraint on the <em>number of edges</em> ("at most k stops") — that is Bellman-Ford.'
+  - 'All-pairs distances with a small node count.'
+  - 'A grid where moving between cells costs something other than 1.'
+complexity: 'O(E log V) Dijkstra · O(V·E) Bellman-Ford · O(V³) Floyd-Warshall'
+template: code/shortest_paths.py
+anchors:
+  - network-delay-time
+  - cheapest-flights-within-k-stops
+  - path-with-minimum-effort
+related:
+  - graph-traversal
+  - heaps
+  - binary-search-answer
+  - minimum-spanning-tree
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Pick by the constraint, not by habit. This table is the page:
+
+| Situation | Algorithm | Complexity |
+| --- | --- | --- |
+| Unweighted | BFS | O(V + E) |
+| Non-negative weights, one source | **Dijkstra** | O(E log V) |
+| Negative weights allowed | **Bellman-Ford** | O(V·E) |
+| At most k edges | **Bellman-Ford** | O(k·E) |
+| All pairs, V ≲ 400 | **Floyd-Warshall** | O(V³) |
+| Weights are 0 or 1 | 0-1 BFS with a deque | O(V + E) |
+
+**Dijkstra on a graph with negative edges is the classic mistake.** It commits
+to a node the first time it is popped, and a negative edge encountered later
+can invalidate that commitment. If negatives are possible, say so and switch.
+
+## Dijkstra
+
+<Snippet file="code/shortest_paths.py" symbol="dijkstra" title="Dijkstra with lazy deletion" />
+
+The detail worth understanding is the `if d > dist[node]: continue`.
+
+Textbook Dijkstra uses a priority queue with *decrease-key*. `heapq` has no
+such operation, so instead of updating an existing entry we push a second,
+better one and skip the stale entry when it surfaces. That is **lazy
+deletion**, and it is the same technique the
+[skyline problem](../intervals/) needs.
+
+The consequence is that the heap can hold O(E) entries rather than O(V), so
+the bound is O(E log E) — which is the same as O(E log V) since E ≤ V².
+Interviewers ask why the guard is there; "lazy deletion, because heapq can't
+decrease-key" is the whole answer.
+
+## Bellman-Ford, and why the copy matters
+
+<Snippet file="code/shortest_paths.py" symbol="bellman_ford" title="Bellman-Ford" />
+
+Relax every edge V − 1 times, because a shortest path has at most V − 1
+edges. If a V-th round still improves something, a negative cycle exists —
+that detection is the reason to know this algorithm at all.
+
+<Snippet file="code/shortest_paths.py" symbol="cheapest_flights_within_k_stops" title="The edge-count constraint" />
+
+This is the one that catches people. The constraint is on the **number of
+edges**, and Bellman-Ford's rounds *are* edge counts — after round i, `dist`
+holds the best cost using at most i edges. That correspondence is why this
+problem is Bellman-Ford and not Dijkstra, even though all the weights are
+positive.
+
+**The snapshot copy is essential.** Relaxing from an array you are
+simultaneously writing lets a single round chain two edges together, silently
+permitting k + 1 stops. Omitting `snapshot = dist[:]` gives an answer that is
+too good and passes the sample. Write it, and say why.
+
+## Floyd-Warshall
+
+<Snippet file="code/shortest_paths.py" symbol="floyd_warshall" title="All pairs, three loops" />
+
+Three lines, and **the loop order is not negotiable**: `k` must be outermost.
+Read it as "allowing paths that route through the first k nodes" — the
+invariant only holds if k is the outer dimension. Any other nesting computes
+something that is not shortest paths, and it is subtly wrong rather than
+obviously wrong.
+
+Only viable to about V = 400 (V³ = 6.4·10⁷). The constraint tells you: if the
+problem says `n <= 100` and asks about all pairs, this is the intended answer.
+
+## Variants worth recognising
+
+- **0-1 BFS.** When every weight is 0 or 1, a deque replaces the heap:
+  `appendleft` for a 0-edge, `append` for a 1-edge. O(V + E), no log.
+- **Maximum probability** (multiply instead of add, maximise instead of
+  minimise) is Dijkstra with the comparison flipped.
+- **Minimise the maximum edge** on a path is *not* Dijkstra as written —
+  replace `d + weight` with `max(d, weight)`, or use
+  [binary search on the answer](../binary-search-answer/).
+
+## Pitfalls
+
+- **Dijkstra with negative edges.**
+- **Missing the stale-entry guard**, which makes it correct but slow.
+- **Forgetting the snapshot** in the k-stops variant.
+- **Wrong loop order** in Floyd-Warshall.
+- **1-indexed input.** Network Delay Time is 1-indexed; subtract one or size
+  the arrays accordingly.
+- **Unreachable nodes.** The answer is infinity, which usually maps to −1.
+  Check before casting to `int`.
+
+## Anchor walkthroughs
+
+### Network Delay Time
+
+**Clarify.** Are weights non-negative? (Yes — so Dijkstra.) Is the graph
+directed? (Yes.) What if some node is unreachable? (Return −1.) Is it
+1-indexed? (Yes.)
+
+**The insight.** The signal reaches everything when the *last* node receives
+it, so the answer is the **maximum** of the shortest distances — not the sum,
+and not the distance to a particular node. Misreading that is the most common
+error, and it is a reading error rather than an algorithmic one.
+
+**Complexity.** O(E log V).
+
+**Dry-run** `times = [[2,1,1],[2,3,1],[3,4,1]], n = 4, k = 2`. Distances from
+2: node 1 at 1, node 3 at 1, node 4 at 2. Maximum 2. Then remove the last
+edge and confirm node 4 is unreachable, giving −1.
+
+### Cheapest Flights Within K Stops
+
+**Clarify.** Is "k stops" k intermediate nodes, so k + 1 flights? (Yes — the
+off-by-one that decides the answer.) Are prices positive? Can there be
+duplicate routes?
+
+**Why not Dijkstra.** Say this explicitly, because it is the point of the
+question: Dijkstra settles a node at its cheapest cost, but here a *more
+expensive* route with fewer stops may be the only viable one. The state is
+`(node, stops_used)`, not just `node`.
+
+**The insight.** Bellman-Ford limited to k + 1 rounds, because each round
+extends every path by exactly one edge.
+
+**The snapshot**, as above. This is the single line that decides whether the
+solution is right.
+
+**Dry-run** `n=3, flights=[[0,1,100],[1,2,100],[0,2,500]], src=0, dst=2`. With
+k = 1 you may use two flights, so 0→1→2 costs 200. With k = 0 you may use one
+flight, so only the direct 500 is available. Running both cases proves the
+round count is right.
+
+**Alternative:** Dijkstra over the state `(cost, node, stops)`, which also
+works and is worth mentioning — it is a nice illustration that widening the
+state can rescue an algorithm that does not apply to the narrow one.
+
+### Path with Minimum Effort
+
+**Clarify.** Is effort the *maximum* single step, not the sum? (Yes — that is
+the whole problem.) Four-directional movement? Can you revisit cells?
+
+**Why plain Dijkstra needs modifying.** The cost of a path is the max of its
+edges, not the sum. Dijkstra still works if you change the relaxation from
+`d + weight` to `max(d, weight)` — the algorithm only needs the cost function
+to be monotone non-decreasing along a path, which `max` is.
+
+**The alternative** is [binary search on the answer](../binary-search-answer/):
+guess an effort limit, then ask whether the destination is reachable using
+only edges below it — a plain BFS. O(m·n·log(maxDiff)).
+
+**Which to choose.** Modified Dijkstra is O(m·n·log(m·n)) with no dependence
+on the value range; binary search depends on the range but has a smaller
+constant. Saying "it depends on whether the grid or the elevation range is
+larger" is a better answer than picking one.
+
+**A third option:** sort the edges and use [union-find](../union-find/),
+adding edges cheapest-first until the corners connect. That is effectively
+Kruskal, and offering all three is a strong finish.

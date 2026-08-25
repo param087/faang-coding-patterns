@@ -1,0 +1,157 @@
+---
+id: graph-traversal
+title: Graph Traversal (BFS & DFS)
+recognition:
+  - 'A grid where adjacent cells are connected — islands, regions, flood fill.'
+  - 'The words <strong>fewest steps</strong>, <strong>minimum moves</strong>, <strong>shortest</strong> on an <em>unweighted</em> graph.'
+  - 'Connected components, or "is there a path from A to B".'
+  - 'Something spreading outward from several sources at once.'
+  - 'State transitions: each configuration is a node, each legal move an edge.'
+complexity: 'O(V + E), or O(rows·cols) on a grid'
+template: code/graph_traversal.py
+anchors:
+  - number-of-islands
+  - rotting-oranges
+  - word-ladder
+related:
+  - topological-sort
+  - union-find
+  - shortest-paths
+  - matrix
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+The choice between BFS and DFS is not stylistic.
+
+> **BFS gives the shortest path in an unweighted graph. DFS does not.**
+
+If the question says "fewest", "minimum" or "shortest", it is BFS. If it says
+"does a path exist" or "explore this region", either works and DFS is shorter
+to write. If edges have weights, neither is enough — go to
+[Shortest Paths](../shortest-paths/).
+
+<Snippet file="code/graph_traversal.py" symbol="num_islands" title="Counting regions" />
+
+Two implementation notes that matter more than the algorithm:
+
+**Write it iteratively.** A 300×300 grid of all land recurses 90,000 deep and
+blows Python's 1000-frame limit. Interviewers at Google in particular will
+hand you exactly that input.
+
+**Mark on push, not on pop.** If you only mark a cell when you dequeue it, the
+same cell can be queued many times before it is first processed, and the
+queue's memory blows up. This is the single most common BFS bug.
+
+Sinking the island — overwriting `'1'` with `'0'` — avoids a `visited` set
+entirely, at the cost of mutating the input. Say that you are mutating it and
+offer the set version; some interviewers care a great deal.
+
+## Multi-source BFS
+
+<Snippet file="code/graph_traversal.py" symbol="rotting_oranges" title="Seed the queue with every source" />
+
+The move worth internalising: when several things spread simultaneously,
+**put them all in the queue before the first step**. Running a separate BFS
+per source is O(sources × cells) and — more importantly — gives the wrong
+answer, because the spreads interact.
+
+`for _ in range(len(queue))` processes exactly one level, which is what makes
+the level count equal the elapsed minutes. Same idiom as
+[level-order traversal](../binary-trees/).
+
+## Shortest path, unweighted
+
+<Snippet file="code/graph_traversal.py" symbol="shortest_path_unweighted" title="The minimum-moves template" />
+
+Once you see this shape, a whole family of problems that do not look like
+graphs become routine — because **any state space is a graph**:
+
+| Problem | A node is | An edge is |
+| --- | --- | --- |
+| Word Ladder | a word | a one-letter change |
+| Open the Lock | a 4-digit combination | turning one wheel |
+| Sliding Puzzle | a board arrangement | one legal slide |
+| Minimum Knight Moves | a square | a knight's move |
+| Jump Game III | an index | a permitted jump |
+
+Recognising "this is BFS over states" is most of the difficulty in each of
+them.
+
+## Pitfalls
+
+- **Recursion depth**, as above.
+- **Marking on pop.**
+- **Forgetting the bounds check** before indexing a grid. Combine it with the
+  value check in one condition.
+- **Using DFS for a shortest path.** It finds *a* path, not the shortest.
+- **`list.pop(0)` as a queue.** O(n) per operation. `collections.deque`.
+- **Disconnected graphs.** A single traversal from one node misses the rest.
+  Loop over all nodes and start a new traversal from each unvisited one.
+- **The 8-direction case.** Some problems count diagonals as adjacent. Read
+  carefully, and make the direction list a named constant so it is visible.
+
+## Anchor walkthroughs
+
+### Number of Islands
+
+**Clarify.** Are diagonals connected? (Usually not — but ask, it changes the
+direction list.) May I modify the grid? Is the grid guaranteed non-empty?
+
+**The insight.** Every unvisited land cell starts exactly one island; flood
+from it and everything reachable belongs to the same island. The count of
+flood-fills is the answer.
+
+**The conversation to have:** DFS or BFS? Either is correct here since you
+only need connectivity, not distance. Choose DFS for brevity — but write it
+with an explicit stack, and say why.
+
+**Complexity.** O(rows × cols): every cell is visited at most twice, once by
+the outer scan and once by a flood.
+
+**Follow-up:** "the grid arrives as a stream of add-land operations, and you
+must report the island count after each." That is
+[Union-Find](../union-find/) — the answer changes entirely, because
+connectivity is now growing over time.
+
+### Rotting Oranges
+
+**Clarify.** Do oranges rot diagonally? What if there are no fresh oranges at
+the start? (Answer 0, not −1 — a real edge case.) What if there are no rotten
+ones but there are fresh?
+
+**The insight.** Multi-source BFS, and the level count is the number of
+minutes.
+
+**The two edge cases** are the whole difficulty and are worth writing down
+before coding: zero fresh oranges returns 0 immediately, and any fresh orange
+still remaining at the end returns −1.
+
+**Dry-run** `[[2,1,1],[1,1,0],[0,1,1]]`. Minute 1 rots two neighbours, and so
+on to 4. Then run `[[2,1,1],[0,1,1],[1,0,1]]`, where the bottom-left orange is
+walled off — that is the −1 case.
+
+### Word Ladder
+
+The one that teaches "any state space is a graph".
+
+**Clarify.** Is `endWord` guaranteed in the list? (If not, return 0.) Are all
+words the same length? Is `beginWord` in the list? Is the count of words or of
+transformations wanted? (LeetCode wants the number of words in the sequence,
+so the answer is edges + 1 — an off-by-one that bites everyone once.)
+
+**The insight.** Words are nodes; two words are adjacent if they differ in one
+letter. Shortest transformation = shortest path = BFS.
+
+**Building the edges is the real problem.** Comparing every pair of words is
+O(n² · L). Instead, build a map from **wildcard patterns** — `hot` generates
+`*ot`, `h*t`, `ho*` — to the words matching them. That is O(n · L) and turns
+neighbour lookup into a dict access. This preprocessing step is what the
+question is actually testing.
+
+**Follow-up:** bidirectional BFS. Search from both ends and stop when the
+frontiers meet, roughly halving the explored space from `b^d` to `2·b^(d/2)`.
+Worth naming even if you do not implement it; it is the standard optimisation
+for this shape.
