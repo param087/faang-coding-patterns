@@ -1,0 +1,157 @@
+---
+id: linked-lists
+title: Linked Lists
+recognition:
+  - 'The input is a <code>ListNode</code>. That is usually the whole tell.'
+  - 'The words <strong>reverse</strong>, <strong>reorder</strong>, <strong>merge</strong>, <strong>cycle</strong>, <strong>k-th from the end</strong>.'
+  - 'A follow-up demands <strong>O(1) extra space</strong>, which rules out copying into an array.'
+  - 'You need the middle, or two pointers a fixed distance apart.'
+  - 'A structure with O(1) insert and delete given a node — that is why LRU uses one.'
+complexity: 'O(n) time, O(1) space'
+template: code/linked_lists.py
+anchors:
+  - reverse-linked-list
+  - reorder-list
+  - reverse-nodes-in-k-group
+related:
+  - two-pointers
+  - design
+  - stack
+  - divide-and-conquer
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+There is no algorithmic depth here. There is pointer discipline, and three
+habits that prevent nearly every bug:
+
+1. **Use a dummy head.** It removes the special case for "the first node", and
+   that special case is where the bug lives.
+2. **Save `node.next` before you overwrite it.** Once you reassign, the rest
+   of the list is unreachable.
+3. **Draw a two-element list before claiming it works.** Most linked-list bugs
+   are invisible on three or more nodes and obvious on two.
+
+<Snippet file="code/linked_lists.py" symbol="reverse" title="The template" />
+
+Three pointers, strict order. `following = current.next` must come first, and
+the loop ends with `current` at `None` and `previous` at the new head —
+returning `current` is the classic slip.
+
+Be able to write the recursive version too, and be able to say why it is
+worse: O(n) stack space, and at n = 10⁵ it exceeds Python's recursion limit.
+That is a real answer to "which would you use in production".
+
+## The dummy head
+
+<Snippet file="code/linked_lists.py" symbol="merge_two" title="Why the dummy exists" />
+
+Without `dummy`, the first iteration has to decide which list's head becomes
+the result's head, and every subsequent iteration does something different.
+With it, every iteration is identical and you return `dummy.next`. It costs
+one node and saves the whole class of first-element bugs.
+
+Use it for anything that builds a list: merge, partition, remove-duplicates,
+add-two-numbers.
+
+## Fast and slow
+
+<Snippet file="code/linked_lists.py" symbol="middle" title="Finding the middle in one pass" />
+
+`fast` moves two steps per `slow` step, so when `fast` runs off the end,
+`slow` is halfway. The loop condition decides which middle you get on an
+even-length list: `while fast and fast.next` gives the **second** middle,
+`while fast.next and fast.next.next` gives the **first**. Different problems
+want different ones — Reorder List wants the first, Palindrome Linked List
+wants either — so ask, or state which you chose.
+
+The same two-speed idea detects cycles, finds the cycle entrance, and gets the
+k-th node from the end (advance one pointer k steps, then move both).
+
+## The hard one
+
+<Snippet file="code/linked_lists.py" symbol="reverse_k_group" title="Reverse in groups of k" />
+
+It looks intimidating and it is really three easy things in sequence:
+
+1. **Look ahead** k nodes to check a full group exists. If not, stop — the
+   remainder is left alone.
+2. **Reverse exactly k nodes**, terminating the reversed segment at
+   `group_next` rather than `None`.
+3. **Reconnect.** The old head of the group is now its tail, which is why
+   `group_prev.next` is saved before being overwritten.
+
+Write those three steps as comments on the whiteboard first, then fill them
+in. Attempting it as one continuous stream of pointer moves is how it goes
+wrong.
+
+## Pitfalls
+
+- **Losing the rest of the list.** Save `next` first. Always.
+- **Returning `current` instead of `previous`** after a reversal loop.
+- **Not handling empty or single-node input.** `head` may be `None`; `head.next`
+  may be `None`. Both are one guard.
+- **Cycles making your loop infinite.** If the problem allows a cycle, detect
+  it before traversing.
+- **Copying to an array.** Legal, O(n) space, and usually the thing the
+  follow-up forbids. Have the in-place version ready.
+- **Modifying the input.** In-place reversal destroys the caller's list. If
+  the problem needs the original afterwards, say so and restore it.
+
+## Anchor walkthroughs
+
+### Reverse Linked List
+
+**Clarify.** In place or return a new list? Iterative or recursive preferred?
+Is the list possibly empty?
+
+**Why it is asked.** It is the calibration question of the category — the
+interviewer wants to see the three-pointer dance written cleanly and without
+hesitation. Fumbling it colours everything after.
+
+**Dry-run two nodes** out loud: `1 → 2`. `previous = None`, `current = 1`.
+Save `following = 2`; `1.next = None`; `previous = 1`; `current = 2`. Save
+`following = None`; `2.next = 1`; `previous = 2`; `current = None`. Loop ends,
+return `previous` = 2. Correct, and it took twenty seconds.
+
+**Follow-up:** reverse between positions `m` and `n`, which is this loop with a
+dummy head and two saved boundary pointers.
+
+### Reorder List
+
+Turn `L0 → L1 → ... → Ln` into `L0 → Ln → L1 → Ln-1 → ...`.
+
+**The insight.** It is three known operations composed: find the middle, reverse
+the second half, then interleave. Recognising a composite problem as a
+sequence of primitives you already own is the skill this question tests.
+
+**The detail that decides it:** cut the list at the middle — set the first
+half's tail `.next = None` — before reversing. Skip that and the two halves
+still point at each other, and the interleave loops forever.
+
+**Which middle?** The *first* middle, so the first half is never shorter than
+the second. On `[1,2,3,4]` you want `[1,2]` and `[4,3]`.
+
+**Dry-run** `[1,2,3,4]` → middle at 2, cut → `[1,2]` and `[3,4]` → reverse →
+`[4,3]` → interleave → `[1,4,2,3]`.
+
+### Reverse Nodes in k-Group
+
+**Clarify.** What happens to a trailing partial group? (Left as-is — the other
+convention, reversing it too, is a different problem.) May you modify values
+instead of nodes? (Usually not, and that restriction is the point.)
+
+**The structure.** As described above. State the three steps before coding.
+
+**The check-ahead is not optional.** You must know a full group exists
+*before* you start reversing, because a partial reversal cannot be undone
+cheaply. That is why the loop counts k nodes first and returns early.
+
+**Dry-run** `[1,2,3,4,5]`, k = 2 → `[2,1,4,3,5]`. The trailing `5` is
+untouched, which confirms the check-ahead fires.
+
+**Complexity.** O(n) time — each node is visited a constant number of times —
+and O(1) space. The recursive version is cleaner to write but O(n/k) stack;
+say which you would ship.

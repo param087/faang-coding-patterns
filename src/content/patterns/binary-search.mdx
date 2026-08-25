@@ -1,0 +1,158 @@
+---
+id: binary-search
+title: Binary Search on Arrays
+recognition:
+  - 'The input is <strong>sorted</strong>, or rotated-sorted, or a sorted matrix.'
+  - 'The bound is around 10⁵–10⁹ and the expected complexity has a <strong>log</strong> in it.'
+  - 'You need the <strong>first</strong> or <strong>last</strong> position of something, not just any.'
+  - 'The answer is a boundary between "too small" and "large enough".'
+  - 'A follow-up asks you to beat a linear scan on sorted data.'
+complexity: 'O(log n)'
+template: code/binary_search.py
+anchors:
+  - search-in-rotated-sorted-array
+  - find-first-and-last-position-of-element-in-sorted-array
+  - median-of-two-sorted-arrays
+related:
+  - binary-search-answer
+  - divide-and-conquer
+  - ordered-set
+  - sorting
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Everyone knows the algorithm. Almost nobody writes the bounds correctly under
+pressure, because they re-derive the loop condition every time.
+
+**Learn one template and never deviate.** This one:
+
+<Snippet file="code/binary_search.py" symbol="lower_bound" title="The only template you need" />
+
+Three properties make it reliable:
+
+- The interval is **half-open**, `[low, high)`. `high` starts at `len(nums)`,
+  not `len(nums) - 1`.
+- The loop is `while low < high`, so it terminates when they meet.
+- **The answer is always `low`.** No off-by-one at the end, no separate check.
+
+Every other bound is one character different:
+
+<Snippet file="code/binary_search.py" symbol="upper_bound" title="Upper bound — `<=` instead of `<`" />
+
+And a plain "does it exist" is `lower_bound` followed by a single check that
+the index is in range and holds the target.
+
+<Snippet file="code/binary_search.py" symbol="search_range" title="Both bounds, composed" />
+
+Writing that as one bespoke loop with flags is how people lose ten minutes on
+a Medium. Two calls to a template you trust is thirty seconds.
+
+Python ships this: `bisect_left` is `lower_bound`, `bisect_right` is
+`upper_bound`. Use them when allowed — and be able to write them when not.
+
+## Searching what is not quite sorted
+
+<Snippet file="code/binary_search.py" symbol="search_rotated" title="Rotated array" />
+
+The insight: after any rotation, **at least one half of the array is still
+properly sorted**. Compare `nums[low]` to `nums[mid]` to find out which, then
+check whether the target falls inside that half's known range. If it does,
+search there; if not, the other half must contain it.
+
+The comparison must be `nums[low] <= nums[mid]`, with the equals. On a
+two-element interval `mid == low`, and a strict `<` sends you down the wrong
+branch.
+
+<Snippet file="code/binary_search.py" symbol="find_min_rotated" title="Finding the pivot" />
+
+**Compare against `nums[high]`, never `nums[low]`.** This is the detail worth
+memorising. Comparing to the left end requires a special case for the
+not-actually-rotated array; comparing to the right end is correct in both
+situations, so the function has no special case at all.
+
+## Pitfalls
+
+- **`high = len(nums) - 1` with `while low < high`.** Mixing the closed and
+  half-open conventions drops the last element. Pick one; the template above
+  is half-open throughout.
+- **`mid = (low + high) // 2` overflows** in Java and C++ for large indices.
+  Use `low + (high - low) // 2` there. Python has arbitrary-precision ints, so
+  it is fine — but say you know, because interviewers ask.
+- **Infinite loops** from `low = mid` instead of `low = mid + 1`. If the
+  interval can fail to shrink, it will.
+- **Duplicates break the rotated-array logic.** `[1,1,1,0,1]` cannot decide
+  which half is sorted, and the worst case degrades to O(n). That is Search in
+  Rotated Sorted Array II, and the honest answer is "with duplicates it's O(n)
+  worst case".
+- **Binary searching an unsorted array.** The precondition is monotonicity.
+  When the array is not sorted but the *answer space* is monotone, you want
+  [Binary Search on the Answer](../binary-search-answer/).
+
+## Anchor walkthroughs
+
+### Search in Rotated Sorted Array
+
+**Clarify.** Are values distinct? (This decides whether O(log n) is even
+possible.) Is the array guaranteed rotated, or possibly not rotated at all?
+Return the index or a boolean?
+
+**Brute force.** Linear scan, O(n). Correct, and the bound (10⁵ with an
+expected O(log n)) tells you it is not what they want.
+
+**The insight.** One half is always sorted. State it before writing anything —
+that sentence is the solution, and the code is bookkeeping.
+
+**Dry-run** `[4,5,6,7,0,1,2]`, target 0. `mid` = 7 at index 3. `nums[0]=4 <=
+7`, so the left half is sorted; is 0 in `[4, 7)`? No → go right. Now
+`[0,1,2]`, `mid` = 1. `nums[4]=0 <= 1`, left sorted; is 0 in `[0, 1)`? Yes →
+go left. Found at index 4.
+
+**Follow-up:** duplicates. Explain that `[1,1,1,0,1]` makes the
+"which half is sorted" test ambiguous, so you skip one element on a tie and
+the worst case becomes O(n). Knowing that the guarantee *breaks* is the point
+of the follow-up.
+
+### Find First and Last Position
+
+**Clarify.** Return `[-1,-1]` if absent? Is the array sorted ascending?
+Duplicates guaranteed, or possibly one occurrence?
+
+**The insight.** This is two boundary searches, not one search plus a scan.
+The scan version is O(n) when the array is all one value — which is exactly
+the test case they will run.
+
+**Write `lower_bound` and `upper_bound`, then compose them.** Then say
+"in production I'd use `bisect_left` and `bisect_right`", which shows you know
+the standard library without hiding behind it.
+
+**Edge cases** worth naming: empty array, target smaller than everything,
+target larger than everything, single-element array.
+
+### Median of Two Sorted Arrays
+
+The Hard, and the one where people freeze. Worth knowing that a *good* answer
+is not necessarily the optimal one.
+
+**The honest ladder.** Merging both arrays is O(m + n) and trivially correct —
+say it, because it establishes a baseline. The problem asks for
+O(log(m + n)), which needs the partition idea.
+
+**The insight.** Do not search for the median; search for the **partition
+point**. Cut array A somewhere and array B at the complementary place so the
+left side has exactly half the elements. The cut is correct when
+`maxLeftA <= minRightB` and `maxLeftB <= minRightA`. Binary search the cut
+position in the *shorter* array.
+
+**The bookkeeping** is where it fails: infinities for the out-of-range edges,
+and getting the half-length right for odd versus even totals. Write those
+constants down before the loop.
+
+**Complexity.** O(log(min(m, n))) — searching the shorter array, which is why
+you swap them if needed.
+
+**Realistically:** if this comes up cold in a 35-minute round, giving the
+O(m + n) merge with a clear explanation of why the log version is harder is a
+respectable outcome. Do not burn twenty minutes producing a broken partition.

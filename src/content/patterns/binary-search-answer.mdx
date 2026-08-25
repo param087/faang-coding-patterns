@@ -1,0 +1,176 @@
+---
+id: binary-search-answer
+title: Binary Search on the Answer
+recognition:
+  - '<strong>Minimise the maximum</strong>, or maximise the minimum. Almost always this pattern.'
+  - 'The words <strong>minimum capacity</strong>, <strong>smallest speed</strong>, <strong>least time</strong>, <strong>fewest days</strong>.'
+  - 'The array is <em>not</em> sorted, but the answer clearly has a threshold.'
+  - 'A brute force would try every candidate answer and check it.'
+  - 'The answer range is huge (up to 10⁹) but checking one candidate is O(n).'
+complexity: 'O(n log(range))'
+template: code/binary_search_answer.py
+anchors:
+  - koko-eating-bananas
+  - split-array-largest-sum
+  - path-with-minimum-effort
+related:
+  - binary-search
+  - greedy
+  - dp-grid-knapsack
+  - shortest-paths
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+This is the highest-leverage page on the site, because it is the step most
+candidates never take — and once you see it, a whole family of problems that
+look like hard DP collapses into fifteen lines.
+
+You are not searching the array. **You are searching the range of possible
+answers**, and the array is only used to answer one question: *is this
+candidate feasible?*
+
+It works whenever feasibility is **monotone**: if a ship of capacity 20 can
+do the job, so can a ship of capacity 21. That monotonicity is the sorted
+structure binary search needs — it just is not stored anywhere.
+
+<Snippet file="code/binary_search_answer.py" symbol="min_eating_speed" title="The template" />
+
+Notice the shape, because every problem in this family has it:
+
+1. Write a **`feasible(candidate)`** predicate. This is usually a greedy scan
+   and it is where all the real thinking goes.
+2. Establish the **bounds** of the answer space.
+3. Run the lower-bound template from [Binary Search](../binary-search/) over
+   those bounds.
+
+## Getting the bounds right
+
+<Snippet file="code/binary_search_answer.py" symbol="ship_within_days" title="Bounds are part of the problem" />
+
+The lower bound is `max(weights)`, not 1. A ship smaller than the heaviest
+package can never leave port, so `feasible` would be false for every
+candidate and the search would return a nonsense answer — or your greedy
+would loop forever trying to load it.
+
+The upper bound is `sum(weights)`: one enormous ship, one day. Always
+provably feasible, which is what an upper bound has to be.
+
+**Say the bounds out loud and justify both.** Interviewers probe here,
+because a candidate who picks `[1, 10**9]` by reflex usually has not
+understood why the search is valid.
+
+## When it replaces a DP
+
+<Snippet file="code/binary_search_answer.py" symbol="split_array_largest_sum" title="Split Array Largest Sum" />
+
+This one reads like dynamic programming, and there *is* an O(n²k) DP that
+works. The binary-search version is O(n log(sum)) and about a quarter of the
+code: guess the largest permitted subarray sum, greedily cut whenever adding
+the next element would exceed it, and check whether you used at most `k`
+pieces.
+
+Recognising that "minimise the maximum" is a threshold question rather than
+an optimisation over subproblems is exactly the reframing this pattern is
+for.
+
+## The tell
+
+Once you know it, the phrasing gives it away every time:
+
+| Phrasing | Search for |
+| --- | --- |
+| Minimum capacity / speed / size that works | smallest feasible |
+| Maximum distance / value that can be achieved | largest feasible |
+| Minimise the largest X | threshold on X |
+| Maximise the smallest X | threshold on X |
+| Smallest k such that ... | smallest feasible |
+
+"Minimise the maximum" and "maximise the minimum" are near-certain
+identifiers. If you read either phrase, start writing `feasible`.
+
+## Pitfalls
+
+- **Feasibility must be monotone.** If a bigger candidate can fail where a
+  smaller one succeeded, the search is invalid. Check this before writing;
+  it is the one precondition.
+- **Off-by-one on the answer.** For "smallest feasible", use the lower-bound
+  template: `if feasible(mid): high = mid else: low = mid + 1`, answer `low`.
+  For "largest feasible", mirror it carefully — or negate the problem and
+  reuse the same template.
+- **Bounds that are not provably feasible/infeasible.** The upper bound must
+  always work; the lower bound minus one must always fail.
+- **An expensive predicate.** If `feasible` is O(n log n), the total becomes
+  O(n log n log range), which may not fit. Keep the predicate linear.
+- **Real-valued answers.** For a floating-point answer, loop a fixed ~100
+  iterations or until the interval is under an epsilon — `low < high` never
+  terminates on floats.
+
+## Anchor walkthroughs
+
+### Koko Eating Bananas
+
+**Clarify.** Can she eat from more than one pile per hour? (No — that
+restriction is what makes the count `ceil(pile / speed)`.) Is `hours >=
+len(piles)` guaranteed? (Yes, or the problem is infeasible.)
+
+**Brute force.** Try every speed from 1 to `max(piles)`, checking each in
+O(n). That is O(n · max) — at 10⁹ it is hopeless, and stating that number is
+what motivates the search.
+
+**The insight.** Feasibility is monotone: if speed `s` finishes in time, so
+does `s + 1`. So the feasible speeds form a suffix of the range, and you can
+binary search for its start.
+
+**The predicate** is `sum(ceil(pile / speed)) <= hours`. Use
+`math.ceil(pile / speed)` or `-(-pile // speed)`, and mention that plain
+integer division silently gives the wrong answer for partial piles.
+
+**Dry-run** `piles = [3,6,7,11], h = 8`. Try 6: hours are 1+1+2+2 = 6 ≤ 8,
+feasible → search lower. Try 3: 1+2+3+4 = 10 > 8, infeasible → search higher.
+Try 4: 1+2+2+3 = 8 ≤ 8, feasible. Try nothing smaller. Answer 4 — and note
+the exact tie at 8, which is the boundary the `<=` handles.
+
+### Split Array Largest Sum
+
+**Clarify.** Contiguous subarrays? (Yes — non-contiguous would be a different,
+harder problem.) Are values non-negative? (That matters for monotonicity:
+with negatives, adding an element can *decrease* a subarray sum and the
+greedy breaks.)
+
+**Give the DP first.** `dp[i][j]` = best split of the first `i` elements into
+`j` parts, O(n²k). It is correct and it shows you can see the structure.
+
+**Then the reframe.** "Instead of computing the minimum largest sum, I can ask
+whether a given largest sum is achievable — that's monotone, so I can binary
+search it." The `feasible` predicate is a greedy single pass.
+
+**Why greedy cutting is optimal inside the predicate:** you should only start
+a new subarray when forced, because cutting early can never let you fit more
+elements later. Be ready to say that; it is the part of the argument the
+interviewer is checking.
+
+**Complexity.** O(n log(sum − max)), versus O(n²k).
+
+### Path with Minimum Effort
+
+A grid problem that is secretly this pattern, and a good demonstration that
+`feasible` need not be a simple scan.
+
+**The question.** Minimise the largest single elevation change along a path
+from corner to corner.
+
+**The insight.** "Minimise the maximum" — binary search the answer. For a
+candidate effort `e`, `feasible(e)` asks: *is the destination reachable using
+only edges with change ≤ e?* That is a plain BFS or DFS over a filtered grid.
+
+**Complexity.** O(m·n·log(maxDiff)).
+
+**The alternative** is a modified Dijkstra where the path cost is the max edge
+rather than the sum — see [Shortest Paths](../shortest-paths/). Being able to
+offer both, and note that Dijkstra is O(m·n·log(m·n)) with no dependence on
+the value range, is a strong finish. Which is better depends on whether the
+elevation range or the grid is larger, and saying so is better than picking
+one and hoping.

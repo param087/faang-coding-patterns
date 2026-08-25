@@ -1,0 +1,155 @@
+---
+id: stack
+title: Stack Fundamentals
+recognition:
+  - 'Brackets, parentheses, tags — anything that <strong>nests</strong>.'
+  - 'The rule is "undo the most recent thing" or "match with the closest unmatched".'
+  - 'You need a data structure with an extra O(1) query, like <code>getMin</code>.'
+  - 'Postfix or prefix notation, or an expression evaluated left to right.'
+  - 'A simulation where later arrivals destroy earlier ones.'
+complexity: 'O(n) time, O(n) space'
+template: code/stack.py
+anchors:
+  - min-stack
+  - evaluate-reverse-polish-notation
+  - asteroid-collision
+related:
+  - monotonic-stack
+  - string-manipulation
+  - design
+  - linked-lists
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A stack is for when the meaning of what you are reading *now* depends on
+something you read earlier and have not finished with. That is exactly what
+nesting is, which is why brackets are the canonical example.
+
+<Snippet file="code/stack.py" symbol="is_valid" title="The template" />
+
+Two failure modes, and both need handling: a closer that does not match the
+top (or arrives with an empty stack), and openers still on the stack when the
+string ends. Returning `True` at the end without checking `not stack` passes
+`"()"` and fails `"("`.
+
+Mapping closers to openers rather than the other way round means one dict
+lookup instead of a chain of `if`s, and it makes the "is this a closer" test
+free.
+
+## Augmenting a stack
+
+<Snippet file="code/stack.py" symbol="MinStack" title="O(1) minimum" />
+
+The instinct is to keep a single `min` variable. It fails, and it is worth
+understanding exactly why: when you pop the current minimum, you have no way
+to recover the previous one without scanning — which is O(n).
+
+The fix is to store the running minimum **alongside every value**, so popping
+restores the previous minimum for free. It costs O(n) extra space, and the
+usual follow-up is "can you do better?" The answer is a second stack that
+only pushes when a new minimum arrives, which is smaller in practice but the
+same worst case. Have both.
+
+This is a general move: when a structure needs an extra O(1) query, consider
+storing the answer to that query at every level rather than recomputing it.
+
+## Stacks as evaluators
+
+<Snippet file="code/stack.py" symbol="eval_rpn" title="Reverse Polish notation" />
+
+Two things to get right, and they are the only two:
+
+- **Operand order.** The first value you pop is the *right*-hand operand.
+  `left - right`, not `right - left`. Subtraction and division expose this
+  immediately; addition and multiplication hide it.
+- **Truncation.** `int(a / b)` truncates toward zero; `a // b` floors.
+  `-7 // 2` is `-4` but the problem wants `-3`. This is the same trap as in
+  [String Parsing](../string-manipulation/) and it is worth internalising
+  once.
+
+## Stacks as simulations
+
+<Snippet file="code/stack.py" symbol="asteroid_collision" title="Later arrivals destroy earlier ones" />
+
+A collision only happens when a right-mover is followed by a left-mover, which
+is exactly `stack[-1] > 0 and asteroid < 0`. Everything else just gets pushed.
+
+The `while ... else` is doing real work here and is worth reading twice: the
+`else` runs only when the loop completed *without* breaking, which is
+precisely the case where the incoming asteroid survived every collision and
+should be pushed. Writing this with a boolean flag instead works fine — but
+if you use the `else`, say what it does, because a lot of people have not
+seen it.
+
+## Pitfalls
+
+- **Popping an empty stack.** Guard every `pop()` with `if stack`. This is the
+  crash that ends the question.
+- **Returning early without draining.** Balanced-bracket problems must check
+  the stack is empty at the end.
+- **Using a list as a queue.** `list.pop(0)` is O(n). Use
+  `collections.deque` when you need FIFO.
+- **Recursion is a stack.** If the problem is naturally recursive and the
+  interviewer asks for an iterative version, they are asking you to make the
+  call stack explicit — that is the whole exercise.
+- **Storing values when you need indices.** The moment you need a distance or
+  a width, you needed indices. See [Monotonic Stack](../monotonic-stack/).
+
+## Anchor walkthroughs
+
+### Min Stack
+
+**Clarify.** Will `getMin` be called on an empty stack? Do `pop` and `top`
+return anything? Are duplicate minima possible? (Yes, and the two-stack
+variant has to handle them with `<=` rather than `<`.)
+
+**The naive attempt, out loud.** "I could keep a `min` field — but popping the
+minimum leaves me with no way to find the next one without a scan, so that
+breaks the O(1) requirement." Naming the broken idea and why it breaks is
+worth more than jumping straight to the answer.
+
+**The insight.** Store `(value, min_so_far)` pairs. Every operation stays O(1)
+and pop restores automatically.
+
+**Follow-up:** "reduce the space." The second-stack version pushes only when a
+new minimum arrives. Mention that duplicates need `<=` or you lose a minimum
+too early — that is the bug in the compressed version.
+
+### Evaluate Reverse Polish Notation
+
+**Clarify.** Is the expression guaranteed valid? Division by zero possible?
+Integer division — truncate or floor? Can operands be negative?
+
+**The insight.** RPN exists so you do not need precedence: operands
+accumulate, and an operator consumes the two most recent. That is a stack, and
+the answer is whatever is left.
+
+**Dry-run** `["4","13","5","/","+"]`. Push 4, 13, 5. `/` pops 5 and 13 → 13/5
+= 2 (truncated). `+` pops 2 and 4 → 6. Then run `["-7","2","/"]` and confirm
+you get −3, not −4. That single case is the difference between passing and
+failing.
+
+**Follow-up:** convert infix to RPN (the shunting-yard algorithm), or evaluate
+infix directly — which is [Basic Calculator](../string-manipulation/).
+
+### Asteroid Collision
+
+**Clarify.** Do same-direction asteroids ever collide? (No.) What happens on
+equal size? (Both explode.) Can size be zero?
+
+**The insight.** Only a positive on the stack meeting a negative incoming can
+collide. Everything else is a push. Once you state that condition precisely,
+the code is a short `while` with three outcomes: incoming wins and we keep
+looking left, both die, or incoming dies.
+
+**Dry-run** `[10, 2, -5]`. Push 10, push 2. −5 arrives: 2 < 5 so 2 explodes;
+keep checking; 10 > 5 so −5 explodes. Result `[10]`. Then run `[-2, -1, 1, 2]`
+where nothing collides at all, because the left-movers arrive first — that is
+the case that catches an over-eager collision condition.
+
+**Where it goes wrong:** forgetting to `break` after the incoming asteroid
+explodes, which keeps testing it against the rest of the stack even though it
+no longer exists.
