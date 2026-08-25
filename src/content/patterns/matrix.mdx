@@ -1,0 +1,145 @@
+---
+id: matrix
+title: Matrix & Simulation
+recognition:
+  - 'A 2-D grid, and the task is to <strong>transform it in place</strong>.'
+  - 'The words <strong>rotate</strong>, <strong>spiral</strong>, <strong>diagonal</strong>, <strong>transpose</strong>, <strong>set zeroes</strong>.'
+  - 'The problem states rules and asks you to apply them faithfully — a simulation.'
+  - 'A follow-up demands <strong>O(1) extra space</strong> on a grid.'
+  - 'No algorithm is hiding; the difficulty is index bookkeeping.'
+complexity: 'O(m·n)'
+template: code/matrix.py
+anchors:
+  - rotate-image
+  - spiral-matrix
+  - set-matrix-zeroes
+related:
+  - graph-traversal
+  - arrays-hashing
+  - prefix-sums
+  - design
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+There is usually no clever algorithm here. These problems test whether you can
+hold a lot of indices in your head, execute a rule exactly, and not be off by
+one — which is a genuine skill and one that shows up directly in real work.
+
+Two techniques recur and are worth extracting.
+
+**Decompose the transform.** Do not try to write the four-way rotational swap.
+
+<Snippet file="code/matrix.py" symbol="rotate" title="Transpose, then reverse" />
+
+A 90° clockwise rotation is a transpose followed by a horizontal flip. Two
+trivially correct passes, each easy to verify aloud on a 2×2, and no chance
+of the index soup that the single-pass version produces at a whiteboard. If
+asked for counter-clockwise, it is transpose then reverse the *columns* —
+or reverse the rows first, then transpose.
+
+The `range(i + 1, n)` in the transpose is the line to point at: iterating the
+full square swaps every pair twice and leaves the matrix unchanged.
+
+**Encode state in the data you already have.**
+
+<Snippet file="code/matrix.py" symbol="set_zeroes" title="Using row 0 and column 0 as the flags" />
+
+The natural solution keeps two sets of rows and columns to blank, costing
+O(m + n). The follow-up asks for O(1), and the answer is to store those flags
+*inside the matrix* — row 0 becomes the column flags, column 0 becomes the
+row flags. Cell (0,0) belongs to both, so column 0 needs one extra boolean.
+
+The second loop runs **backwards** for a reason: the flags live in row 0 and
+column 0, so they must be read before they are themselves overwritten. Going
+forwards zeroes the flags and then reads them as zero, blanking the whole
+matrix. Say this while writing it.
+
+## Bookkeeping with boundaries
+
+<Snippet file="code/matrix.py" symbol="spiral_order" title="Four shrinking boundaries" />
+
+The two guards in the middle are the entire problem. When a single row
+remains, the left-to-right pass consumes it and `top` crosses `bottom`; the
+right-to-left pass would then read it again. `if top <= bottom` prevents it,
+and the mirrored guard does the same for a single column.
+
+**Test on a 1×N and an N×1 before claiming it works.** Square matrices hide
+this bug completely, and the sample input is usually square.
+
+## Traversal orders worth having
+
+| Order | Index rule |
+| --- | --- |
+| Transpose | swap `(i, j)` with `(j, i)`, upper triangle only |
+| Anti-diagonal | cells with constant `i + j` |
+| Main diagonal | cells with constant `i - j` |
+| Spiral | four shrinking boundaries |
+| Boustrophedon | reverse every other row |
+
+The `i + j` grouping is the one people forget, and it turns Diagonal Traverse
+from fiddly into a three-line bucket sort.
+
+## Pitfalls
+
+- **`[[0] * n] * m` aliases every row.** Writing to `grid[0][0]` writes to all
+  of them. Use `[[0] * n for _ in range(m)]`. This is the single most common
+  Python bug in grid problems.
+- **Non-square matrices.** `len(matrix)` is rows, `len(matrix[0])` is columns,
+  and they differ. Rotation in place only works on squares — a rectangular
+  rotation must allocate.
+- **Empty and ragged input.** `if not matrix or not matrix[0]` guards both.
+- **Direction arrays** (`[(0,1),(1,0),(0,-1),(-1,0)]`) are cleaner than four
+  copies of the same block, and they make the wrap-around modulo obvious.
+- **Mutating while iterating** — Game of Life needs the *simultaneous* next
+  state, which is why the in-place version encodes both old and new state in
+  one cell (e.g. 2 bits) rather than writing directly.
+
+## Anchor walkthroughs
+
+### Rotate Image
+
+**Clarify.** Square, or rectangular? In place, or may I allocate? Clockwise?
+
+**The insight.** Decompose. Say "a rotation is a transpose plus a reflection"
+and the interviewer relaxes, because it means you will not spend eight
+minutes on index arithmetic.
+
+**Verify on a 2×2** out loud: `[[1,2],[3,4]]` transposes to `[[1,3],[2,4]]`,
+reverse each row gives `[[3,1],[4,2]]`. Correct, and it took five seconds.
+
+**Follow-up:** counter-clockwise (reverse rows, then transpose), or 180°
+(reverse both). Having all three ready costs nothing.
+
+### Spiral Matrix
+
+**Clarify.** Rectangular allowed? What if it is empty?
+
+**The insight.** Four boundaries that shrink as each edge is consumed. The
+loop condition `top <= bottom and left <= right` handles termination.
+
+**The two guards** as above. This is the whole problem, and the honest way to
+find them is to dry-run a 3×1: after the first rightward pass and the
+downward pass, you are about to read a row that no longer exists.
+
+**Follow-up:** Spiral Matrix II — generate an n×n matrix filled 1..n² in
+spiral order. Same boundaries, writing instead of reading.
+
+### Set Matrix Zeroes
+
+**Clarify.** Must a zero written by the algorithm trigger further zeroing?
+(No — only the original zeroes count. Missing this gives a matrix of all
+zeroes, and it is a real trap.)
+
+**Give the O(m + n) solution first.** Two sets, two passes. It is correct, it
+is clear, and it earns you the right to be asked the follow-up.
+
+**Then the O(1) version.** Reuse row 0 and column 0, with one boolean for the
+shared corner, and the backwards second pass.
+
+**Dry-run** `[[1,1,1],[1,0,1],[1,1,1]]`: the 0 at (1,1) sets flags at (1,0)
+and (0,1); the second pass blanks row 1 and column 1. Then run
+`[[0,1],[1,1]]`, where the zero is already *in* the flag row — that is the
+case the extra boolean exists for.

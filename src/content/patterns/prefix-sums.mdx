@@ -1,0 +1,160 @@
+---
+id: prefix-sums
+title: Prefix Sums & Difference Arrays
+recognition:
+  - 'Repeated queries of the form <strong>sum of range [i, j]</strong> over a fixed array.'
+  - 'Count <strong>subarrays</strong> whose sum equals / is divisible by / is at most something.'
+  - 'Many range <em>updates</em> and one read at the end — that is the difference array.'
+  - 'The array contains negatives, so a sliding window will not work.'
+  - 'A 2-D version: "sum of this rectangle", asked many times.'
+complexity: 'O(n) build, O(1) per query'
+template: code/prefix_sums.py
+anchors:
+  - subarray-sum-equals-k
+  - contiguous-array
+  - range-sum-query-2d-immutable
+related:
+  - arrays-hashing
+  - sliding-window
+  - segment-tree
+  - two-pointers
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+If you know the total up to every position, the total of any slice is one
+subtraction: `sum(i..j) = prefix[j+1] - prefix[i]`.
+
+<Snippet file="code/prefix_sums.py" symbol="build_prefix" title="The build" />
+
+The leading zero is not decoration. With `prefix[0] = 0` the formula works
+for `i = 0` with no special case, and essentially every off-by-one in this
+pattern traces back to an implementation that skipped it. Build it with the
+extra slot, always.
+
+That is the easy half, and it is not what gets asked. The interview version
+is **counting subarrays with a property**, which needs a hash map of prefixes
+seen so far.
+
+<Snippet file="code/prefix_sums.py" symbol="subarray_sum_equals_k" title="Counting, not querying" />
+
+Read the loop as a question: *a subarray ending here sums to k exactly when
+some earlier prefix equalled `running - k`.* So instead of trying every start
+point, look up how many valid start points there were. The seed `{0: 1}`
+represents the empty prefix, which is what makes subarrays starting at index
+0 count.
+
+This is the same reframing as [Two Sum](../arrays-hashing/) — stop searching
+for the partner, and ask whether the partner has already gone past — applied
+to running totals instead of values.
+
+## Why not a sliding window
+
+Because of negatives. A window relies on the sum being monotone as the window
+grows, so that shrinking from the left is a meaningful correction. With
+negative numbers, extending the window can *decrease* the sum, and the whole
+argument collapses.
+
+**Say this in the round.** "Sliding window would be O(1) space, but the
+constraints allow negative values, so the sum isn't monotone and the window
+doesn't apply — I'll use prefix sums with a hash map instead." That sentence
+is the difference between looking like you pattern-matched and looking like
+you know why the pattern applies.
+
+If the problem *does* promise all-positive values, the window is the better
+answer and you should use it.
+
+## The variants worth knowing
+
+| Question | Key on |
+| --- | --- |
+| Sum equals k | `running - k` |
+| Sum divisible by k | `running % k` (watch Python's sign on negatives) |
+| Equal count of 0s and 1s | `running` with 0 counted as -1 |
+| Longest such subarray | first index seen, not a count |
+| 2-D rectangle sum | inclusion–exclusion on four corners |
+
+"Longest" versus "how many" changes what you store: a count for how many, the
+*earliest* index for how long. Storing the latest index instead is the common
+bug — it gives you the shortest.
+
+## Difference arrays: the inverse
+
+<Snippet file="code/prefix_sums.py" symbol="difference_array" title="Many updates, one read" />
+
+Mirror image. A prefix sum answers many range *queries* after one build; a
+difference array applies many range *updates* in O(1) each, then materialises
+once at the end. Corporate Flight Bookings and Car Pooling are both this, and
+both look intimidating until you spot it.
+
+## Pitfalls
+
+- **Off-by-one at the boundary.** Write `prefix[j+1] - prefix[i]` for the
+  inclusive range `[i, j]` and check it on a single-element range before
+  moving on.
+- **`%` on negatives.** Python's `-7 % 3` is `2`, which is what you want for
+  divisibility grouping. C++ and Java give `-1` and need a `+ k) % k` fixup —
+  worth mentioning if you are writing in either.
+- **Overflow.** Not an issue in Python; in Java a prefix over 10⁵ elements of
+  10⁹ each needs `long`. Interviewers do check.
+- **`{0: 1}` versus `{0: 0}`.** The seed is a count of one empty prefix, not
+  zero. Getting this wrong loses every subarray that starts at index 0.
+- **2-D inclusion–exclusion** adds the doubly-subtracted corner back. Draw the
+  four rectangles rather than trying to recall the signs.
+
+## Anchor walkthroughs
+
+### Subarray Sum Equals K — the canonical one
+
+**Clarify.** Can values be negative? (Yes — and this is the question that
+decides your whole approach, so ask it first.) Are we counting subarrays or
+finding one? Contiguous, or any subsequence?
+
+**Brute force.** All O(n²) subarrays, each summed in O(1) with a prefix array.
+At n = 2·10⁴ that is 4·10⁸ — too slow, and the constraint is telling you so.
+
+**The insight.** As above: look backwards for `running - k` rather than
+forwards for an endpoint.
+
+**Dry-run** `[1, -1, 0], k = 0`. Running totals are 1, 0, 0. Seeded with
+`{0: 1}`. At the first element `running - k = 1`, unseen, count stays 0. At
+the second, `running = 0`, and we have seen 0 once → count 1. At the third,
+`running = 0` again, and we have now seen 0 twice → count 3. Three subarrays:
+`[1,-1]`, `[0]`, `[1,-1,0]`. The negative and the zero are both there
+deliberately — run those, not `[1,1,1]`.
+
+**Follow-up:** "longest subarray summing to k" — same scan, but store the
+first index for each prefix and track a maximum length.
+
+### Contiguous Array — the relabelling trick
+
+Find the longest subarray with equal numbers of 0s and 1s.
+
+**The insight** is one line of preprocessing: treat 0 as -1. Then "equal
+counts" becomes "sums to zero", and you are back in the previous problem.
+Recognising that a relabelling turns an unfamiliar question into a familiar
+one is a large fraction of what mid-level interviews test.
+
+**The detail:** because we want the *longest*, the map stores the earliest
+index a prefix was seen at, and the answer is `i - first[running]`. Seed with
+`{0: -1}` so that a subarray starting at index 0 measures correctly.
+
+### Range Sum Query 2D — inclusion–exclusion
+
+Precompute `prefix[r][c]` as the sum of the rectangle from the origin to
+`(r, c)`. Then any rectangle is
+
+```
+total = prefix[r2+1][c2+1] - prefix[r1][c2+1] - prefix[r2+1][c1] + prefix[r1][c1]
+```
+
+The final `+` is the corner you subtracted twice. Do not try to recall the
+signs — draw the big rectangle, cross out the strip above and the strip to
+the left, notice the overlap got removed twice, add it back. Deriving it on
+the whiteboard in fifteen seconds is more convincing than reciting it.
+
+**Follow-up:** "now the matrix is mutable." Prefix sums are O(n²) to rebuild
+per update, so this becomes a 2-D Fenwick tree — see
+[Segment Trees & Fenwick](../segment-tree/).

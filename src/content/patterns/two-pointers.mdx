@@ -1,0 +1,163 @@
+---
+id: two-pointers
+title: Two Pointers
+recognition:
+  - 'The array is <strong>sorted</strong> (or you may sort it) and you need a pair or triple.'
+  - 'A follow-up asked you to do it in <strong>O(1) extra space</strong> — this is usually the intended answer.'
+  - 'Palindromes, reversals, or anything symmetric about a centre.'
+  - 'In-place partitioning: move all the X to the front, keep the rest.'
+  - 'A cycle in a linked structure, or "find the duplicate without modifying the array".'
+complexity: 'O(n) after sorting'
+template: code/two_pointers.py
+anchors:
+  - 3sum
+  - container-with-most-water
+  - sort-colors
+related:
+  - sliding-window
+  - sorting
+  - linked-lists
+  - arrays-hashing
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Three distinct techniques share this name, and choosing between them is most
+of the work.
+
+| Shape | Pointers | Needs | Typical problem |
+| --- | --- | --- | --- |
+| Converging | both ends, moving inwards | sorted input | 3Sum, container with most water |
+| Same direction | read and write, both forward | a keep/drop rule | remove duplicates, move zeroes |
+| Fast & slow | one moves twice as fast | a sequence that may loop | cycle detection, middle of list |
+
+The unifying idea is an **invariant that lets you discard a candidate
+permanently**. Every one of these is O(n) because each step eliminates
+possibilities you never have to revisit — and being able to say what is being
+eliminated is what the interviewer is listening for.
+
+## Converging
+
+<Snippet file="code/two_pointers.py" symbol="three_sum" title="Sort, fix, converge" />
+
+The algorithm is easy; the **deduplication is the whole difficulty**, and it
+is where most attempts fail. Two separate skips are needed:
+
+- Skip a repeated *fixed* element (`nums[i] == nums[i-1]`), or you emit the
+  same triple family twice.
+- After recording a hit, skip repeats of the left pointer, or `[0,0,0,0]`
+  yields `[0,0,0]` several times.
+
+The early `break` when `nums[i] > 0` is not just an optimisation — on a
+sorted array nothing further can sum to zero, and saying so shows you are
+reasoning about the sorted structure rather than just using it.
+
+Sorting costs O(n log n) and the scan is O(n²), so the sort is free. That is
+worth stating: it explains why you can afford to sort at all.
+
+## The exchange argument
+
+<Snippet file="code/two_pointers.py" symbol="max_area" title="Always move the shorter wall" />
+
+This one is short but is really a proof question. Why is it safe to discard
+the shorter wall?
+
+Area is `width × min(left, right)`. Moving either pointer shrinks the width.
+If you move the *taller* wall, the height is still capped by the shorter one,
+so the area cannot increase — that option is strictly dominated. Only moving
+the shorter wall gives any chance of a taller minimum. So the discarded
+pointer can never be part of a better answer.
+
+Interviewers ask "how do you know you didn't skip the optimum?" almost every
+time. Having that paragraph ready is the difference between a pass and a
+hesitant maybe.
+
+## Same-direction partitioning
+
+<Snippet file="code/two_pointers.py" symbol="sort_colors" title="Dutch national flag" />
+
+Three regions, one pass, O(1) space. The subtle line is the `2` branch: after
+swapping with `high`, **`i` does not advance**, because the value pulled in
+from the right has not been examined. Advancing it there is the classic bug,
+and it fails on `[2, 0, 2, 1, 1, 0]` — which is exactly why that is the
+sample input.
+
+## Fast and slow
+
+<Snippet file="code/two_pointers.py" symbol="has_cycle" title="Floyd's cycle detection" />
+
+Written over indices here to make the point that this is not a linked-list
+trick — it works on any "follow the next pointer" sequence, which is why
+Find the Duplicate Number is secretly this problem.
+
+The follow-up is always "now find where the cycle *starts*". After the
+meeting, reset one pointer to the head and advance both one step at a time;
+they meet at the entrance. Know the result even if you cannot re-derive the
+algebra on the spot.
+
+## Pitfalls
+
+- **Forgetting to sort** when the technique needs sorted input. Converging
+  pointers are meaningless on unsorted data.
+- **`while left < right` versus `<=`.** For pair-finding you want `<`, so an
+  element cannot pair with itself. For binary-search-style scans you often
+  want `<=`. Decide deliberately.
+- **Deduplicating in the wrong place.** Skip *after* recording, not before,
+  or you drop legitimate answers.
+- **Mutating while scanning.** In the write-pointer shape, be sure you have
+  read a value before you overwrite its slot.
+- **Sorting destroys original indices.** If the answer needs indices, sort
+  `(value, index)` pairs or use a hash map instead.
+
+## Anchor walkthroughs
+
+### 3Sum — the dedup problem in disguise
+
+**Clarify.** Are duplicate *triples* allowed in the output? (No — that is the
+entire difficulty.) Can I sort, or does the answer need original indices?
+May the same element be reused?
+
+**Brute force.** Three nested loops, O(n³), plus a set to dedupe. At n = 3000
+that is 2.7·10¹⁰. Dead on arrival, and the constraint says so.
+
+**The insight.** Fix one element and the problem becomes 2Sum on a sorted
+array, which converging pointers solve in O(n). Total O(n²), which at n =
+3000 is 9·10⁶ — comfortable.
+
+**Write the dedup deliberately.** Talk through both skips as you write them
+rather than adding them after a failing test; that reads as understanding
+rather than debugging.
+
+**Dry-run** `[-1, 0, 1, 2, -1, -4]` → sorted `[-4, -1, -1, 0, 1, 2]`. i = 0
+finds nothing. i = 1 (-1) finds `[-1, -1, 2]` and `[-1, 0, 1]`. i = 2 is
+skipped as a duplicate fixed value — point at it and say so, because that is
+the line under test.
+
+**Follow-up:** 3Sum Closest (track the best difference instead of exact
+zero), or 4Sum (one more loop, same dedup discipline).
+
+### Container With Most Water — proving the discard
+
+Covered above. The interview shape: give the O(n²) brute force, state the
+exchange argument *before* writing the loop, then write six lines. If you
+write the code first, the interviewer will ask for the proof anyway, and
+producing it under pressure is harder than leading with it.
+
+### Sort Colors — the one-pass constraint
+
+**Clarify.** "Can I do two passes?" — counting sort is trivial: tally 0s, 1s,
+2s, then overwrite. The interviewer will say one pass, which is the point.
+
+**The insight.** Maintain three regions with two boundaries and a scanner.
+Everything left of `low` is 0, everything right of `high` is 2, and the
+middle is being resolved.
+
+**The detail that decides it** is the non-advancing `i` on the 2-swap. Dry-run
+`[2, 0, 1]` explicitly: if you advance `i` you get `[1, 0, 2]`, which is
+wrong, and the bug survives most other inputs.
+
+**Follow-up:** k colours instead of 3. The two-boundary trick does not
+generalise, so it becomes counting sort — knowing where a technique stops is
+worth as much as knowing where it works.

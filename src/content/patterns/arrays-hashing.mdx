@@ -1,0 +1,138 @@
+---
+id: arrays-hashing
+title: Arrays & Hashing
+recognition:
+  - 'You wrote a nested loop asking "does a matching element exist somewhere else?"'
+  - 'The words <strong>duplicate</strong>, <strong>anagram</strong>, <strong>frequency</strong>, <strong>seen before</strong> or <strong>count of</strong>.'
+  - 'Order does not matter to the answer — only membership or multiplicity does.'
+  - 'You need O(1) lookup by something that is not an array index.'
+complexity: 'O(n) time, O(n) space'
+template: code/arrays_hashing.py
+anchors:
+  - two-sum
+  - group-anagrams
+  - longest-consecutive-sequence
+related:
+  - prefix-sums
+  - two-pointers
+  - sorting
+  - design
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Spend memory to buy time. A `dict` or `set` turns "is this thing anywhere in
+the array" from an O(n) scan into an O(1) question, which collapses the
+nested loop that most brute forces start with.
+
+That much is obvious. The part that is actually a skill is choosing **what to
+key on**. Three choices cover nearly everything:
+
+- **The value itself** — membership and duplicate questions.
+- **A canonical form of the value** — anagram grouping keys on sorted letters
+  or a letter-count tuple, so that everything equivalent collides on purpose.
+- **A running aggregate** — the prefix-sum family keys on the total so far,
+  which is its own pattern and lives [next door](../prefix-sums/).
+
+<Snippet file="code/arrays_hashing.py" symbol="two_sum" title="The template" />
+
+The ordering inside that loop matters more than it looks. Checking for the
+complement *before* inserting the current value is what stops an element
+pairing with itself when `target` is `2 * value`. Writing the insert first
+passes the sample and fails on `[3, 3], target = 6`.
+
+## Canonical keys
+
+<Snippet file="code/arrays_hashing.py" symbol="group_anagrams" title="Keying on a canonical form" />
+
+Sorting each word is O(k log k) and completely fine. The count-tuple version
+is O(k) and worth a sentence out loud even if you write the sorted one —
+"if the alphabet is fixed I'd key on a 26-length count vector instead, which
+drops the log factor" is exactly the kind of remark that reads as senior.
+
+## When a set beats sorting
+
+<Snippet file="code/arrays_hashing.py" symbol="longest_consecutive" title="Linear, not n log n" />
+
+This one deserves attention because the obvious solution — sort, then scan
+for runs — is O(n log n), and the interviewer will ask you to beat it.
+
+The move is the `continue`. Without it you would walk every run from every
+one of its members and the whole thing is quadratic. By only starting a walk
+from a value with no left neighbour, each run is traversed exactly once
+across the entire loop, so the inner `while` costs O(n) *in total*. That is
+the same amortised argument as the [monotonic stack](../monotonic-stack/),
+and it is worth recognising as a recurring idea rather than a one-off trick.
+
+## Pitfalls
+
+- **`dict` iteration order is insertion order in Python**, but do not lean on
+  it for correctness — say what you mean with an explicit sort if order
+  matters.
+- **`defaultdict(int)` creates keys on read.** `if counts[x] == 0` inserts
+  `x`. Use `.get(x, 0)` or `in` when you are only testing.
+- **Hashing is O(1) *expected*, not worst case.** For an adversarial-input
+  question, say so; it is the honest answer and it opens the door to the
+  sorting or bucketing alternative.
+- **Tuples are hashable, lists are not.** Keying on a list raises
+  `TypeError`; convert to a tuple, which is why the count vector above is
+  `tuple(counts)`.
+- **Space is the trade.** If the follow-up is "now do it in O(1) extra
+  space", the answer is almost always sort-then-two-pointers, not a cleverer
+  hash.
+
+## Anchor walkthroughs
+
+### Two Sum — the one everybody has seen, done properly
+
+The risk here is going too fast. It is asked precisely *because* it is easy:
+the interviewer is calibrating how you talk, not whether you can solve it.
+
+**Clarify.** Exactly one valid answer, or possibly many? Can the same element
+be used twice? Are values sorted? Negative numbers? Each question has a real
+consequence, and asking them takes fifteen seconds.
+
+**Brute force, and its cost.** Every pair is O(n²). At n = 10⁴ that is 10⁸ —
+borderline. Say the number rather than the word "slow".
+
+**The insight.** Rather than searching for pairs, ask at each element whether
+its complement has already gone by. One pass, one dict.
+
+**Test it aloud** on `[3, 3], 6` — the self-pairing case — and on a miss.
+Both are ten seconds and both catch the two bugs this problem has.
+
+**The follow-up** is nearly always "what if the array were sorted?", and the
+answer is two pointers converging from the ends in O(1) extra space. Have it
+ready; it is the actual point of the question.
+
+### Group Anagrams — a decision about the key
+
+**Clarify.** Lowercase ASCII only, or Unicode? That single question decides
+whether the 26-length count vector is available. Interviewers at Google in
+particular tend to have a Unicode follow-up loaded.
+
+**The insight.** Two words are anagrams exactly when their multisets of
+characters are equal, so make the multiset the key and let the dict do the
+grouping. The whole problem is realising the key can be a *derived* value.
+
+**Complexity.** O(n·k log k) with sorted keys, O(n·k) with count vectors,
+where k is the longest word.
+
+**The follow-up:** "group by anagram, but the input is a stream and you must
+answer queries as it arrives." Nothing changes — the dict is already
+incremental, which is a nice thing to be able to point out.
+
+### Longest Consecutive Sequence — beating the sort
+
+Covered above, but the interview-shaped version: state the O(n log n) sort
+solution first, confirm it is correct, *then* say "the sort is doing more
+work than the question needs — it is giving me total order when I only need
+adjacency". That sentence is the whole solution, and saying it before writing
+code is what distinguishes recalling this problem from solving it.
+
+**Dry-run** `[100, 4, 200, 1, 3, 2]`. 100 starts a run (no 99) of length 1.
+4 is skipped — 3 exists. 200 runs alone. 1 starts the real run and walks to
+4, giving 4. The skipped values are the point: prove the inner loop does not
+re-walk them.

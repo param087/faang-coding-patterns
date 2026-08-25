@@ -1,0 +1,156 @@
+---
+id: string-manipulation
+title: String Parsing & Manipulation
+recognition:
+  - 'The input is an <strong>expression</strong>, a <strong>path</strong>, a <strong>version string</strong>, or anything with a grammar.'
+  - 'Nested brackets, and the meaning of the inside depends on the outside.'
+  - 'The words <strong>evaluate</strong>, <strong>decode</strong>, <strong>parse</strong>, <strong>simplify</strong>, <strong>justify</strong>.'
+  - 'The difficulty is edge cases and formatting rather than an algorithm.'
+  - 'You need to build output incrementally while tracking suspended context.'
+complexity: 'O(n)'
+template: code/string_manipulation.py
+anchors:
+  - basic-calculator-ii
+  - decode-string
+  - text-justification
+related:
+  - stack
+  - string-algorithms
+  - arrays-hashing
+  - matrix
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+These are small parsers. Once you see the grammar behind the string, the stack
+stops being a trick and becomes the obvious tool: it holds the context you
+suspend when you descend into a bracket, and hands it back when you come out.
+
+Two shapes cover most of them.
+
+**Precedence without a parser.**
+
+<Snippet file="code/string_manipulation.py" symbol="calculate" title="Operator precedence, using a stack as an accumulator" />
+
+The trick that removes all the precedence bookkeeping: push additive terms
+onto a stack, but when the *pending* operator was `*` or `/`, pop and combine
+immediately. Everything left on the stack is additive by construction, so the
+answer is `sum(stack)`. No recursive descent, no operator-precedence table.
+
+Two details that fail silently:
+
+- You act on the **pending** operator at a boundary, not on the operator you
+  just read. The `i == len(expression) - 1` clause is what flushes the final
+  term.
+- `int(a / b)` truncates toward zero; Python's `//` floors. `-7 // 2` is `-4`
+  but the problem wants `-3`. This is the single most common wrong answer on
+  Basic Calculator II.
+
+**Suspend and resume.**
+
+<Snippet file="code/string_manipulation.py" symbol="decode_string" title="Two stacks for nested structure" />
+
+On `[`, push what you were building and the repeat count; on `]`, pop and
+splice the finished piece back in. This generalises to almost any nesting
+problem — nested lists, nested ternaries, file-system paths — and it is worth
+recognising as a shape rather than memorising per problem.
+
+## Formatting problems
+
+<Snippet file="code/string_manipulation.py" symbol="full_justify" title="Text justification" />
+
+Text Justification is not hard, it is *fiddly*, and that is the point: it is
+asked to see whether you enumerate the special cases before coding or
+discover them by failing tests. There are exactly three:
+
+1. The **last line** is left-justified with single spaces.
+2. A line with **one word** is left-justified — no gaps to distribute into.
+3. Extra spaces go to the **leftmost** gaps first (`divmod`, then `i < extra`).
+
+The capacity test `length + len(word) + len(line) > width` is the other place
+to be careful: `len(line)` counts the mandatory single space after each word
+already on the line.
+
+## Python specifics
+
+- Strings are immutable — building with `+=` in a loop is O(n²). Collect into
+  a list and `"".join()`. Interviewers do ask about this.
+- `str.split()` with no argument collapses runs of whitespace and strips; with
+  `split(" ")` it does not. Different problems want different ones.
+- `s[::-1]` reverses. `s.rjust`, `.ljust`, `.center` handle padding.
+- `ord`/`chr` for character arithmetic; `ord(c) - ord('a')` for a 0–25 index.
+
+## Pitfalls
+
+- **Truncation vs flooring** on negative division, as above.
+- **Multi-digit numbers.** `number = number * 10 + int(char)` — a single
+  `int(char)` handles only one digit and breaks on `"12+3"`.
+- **Whitespace.** `" 3 + 5 "` must work. Skip spaces explicitly rather than
+  pre-stripping, or your index arithmetic drifts.
+- **The final token.** Loops that act only on seeing an operator drop the last
+  number. Either append a sentinel or add the `last index` clause.
+- **Unary minus.** `"-2+3"` and `"3*-2"` are different problems from `"3-2"`.
+  Ask whether they are in scope.
+
+## Anchor walkthroughs
+
+### Basic Calculator II — precedence without a parser
+
+**Clarify.** Are there parentheses? (That is Basic Calculator I/III and a
+different solution.) Negative numbers in the input? Integer division —
+truncate or floor? Guaranteed valid expression?
+
+**The brute force** is a two-pass scan: resolve all `*` and `/` first, then
+sum. Correct, and worth mentioning, because the stack version is that idea
+made single-pass.
+
+**The insight.** A stack of additive terms. `*` and `/` reach back and modify
+the top; `+` and `-` push.
+
+**Dry-run** `"3+2*2"`. Read 3, pending `+` → push 3. Read `+`... actually read
+`*` at the boundary after 2: pending operator is `+`, so push 2. Then at the
+end, pending is `*`, so pop 2 and push 4. Stack is `[3, 4]`, sum 7. Then run
+`"14-3/2"` — multi-digit and truncation in one string, which is exactly the
+pair of bugs this problem has.
+
+**Follow-up:** add parentheses. Either recurse on `(`, or push the running
+result and sign onto a stack — that is Basic Calculator I, and the two-stack
+version of it is worth knowing.
+
+### Decode String — suspend and resume
+
+**Clarify.** Can counts be multi-digit? (Yes — `"100[a]"`.) Is the input
+always well formed? Can there be digits in the output letters? (No, which is
+what makes parsing unambiguous.)
+
+**The insight.** Every `[` suspends a computation. Push the two things you
+need to resume — the string built so far and the repeat count — and start
+fresh. Every `]` resumes.
+
+**Dry-run** `"3[a2[c]]"`. At the first `[`, push `("" , 3)`, current becomes
+`""`. Read `a`. At the second `[`, push `("a", 2)`. Read `c`. First `]`:
+current becomes `"a" + "c"*2 = "acc"`. Second `]`: `"" + "acc"*3 =
+"accaccacc"`.
+
+**Follow-up:** the recursive version, which is the same algorithm with the
+call stack doing the pushing. Being able to write both, and say they are the
+same, is the signal.
+
+### Text Justification — enumerate before coding
+
+**Clarify.** Is a single word longer than `width` possible? (Usually
+guaranteed not.) Is the last line special? (Yes.) Trailing spaces on the last
+line — required or forbidden? (Required, to `width`.)
+
+**The approach.** Greedy packing: fit as many words as possible, then
+distribute. Nothing clever — the greedy is optimal because the problem
+defines it that way.
+
+**Write the three special cases down first**, on the whiteboard, before any
+code. Interviewers explicitly look for this on formatting problems; the
+candidates who discover the cases by failing tests take twice as long.
+
+**The distribution** is `divmod(spaces_needed, gaps)`, then give one extra to
+the first `extra` gaps. That is what "left-heavy" means, and it is one line.

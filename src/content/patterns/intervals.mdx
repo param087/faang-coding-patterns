@@ -1,0 +1,154 @@
+---
+id: intervals
+title: Intervals & Sweep Line
+recognition:
+  - 'Input is a list of <code>[start, end]</code> pairs — meetings, bookings, flights, ranges.'
+  - 'The words <strong>merge</strong>, <strong>overlap</strong>, <strong>conflict</strong>, <strong>rooms</strong>, <strong>schedule</strong>.'
+  - 'You need the maximum number of things happening <em>at once</em>.'
+  - 'Ranges are added and queried over time — a calendar.'
+  - 'Something enters and leaves along an axis, and you care about the running total.'
+complexity: 'O(n log n) — the sort dominates'
+template: code/intervals.py
+anchors:
+  - merge-intervals
+  - meeting-rooms-ii
+  - the-skyline-problem
+related:
+  - sorting
+  - heaps
+  - greedy
+  - ordered-set
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Sort by an endpoint, then walk. Which endpoint decides everything:
+
+| Goal | Sort by | Why |
+| --- | --- | --- |
+| Merge overlapping | **start** | so overlaps are adjacent |
+| Fit the most non-overlapping | **end** | finishing early leaves the most room |
+| Peak concurrency | **both, as events** | +1 at start, −1 at end |
+| Track a live set of ranges | **ordered structure** | inserts arrive over time |
+
+Getting this table into reflex is most of what the pattern is.
+
+<Snippet file="code/intervals.py" symbol="merge" title="Merge — sort by start" />
+
+Whether `[1,4]` and `[4,5]` merge is a genuine ambiguity, not a detail to
+guess. **Ask.** For meetings, touching usually does not conflict; for
+number ranges, touching usually merges. The code differs by one character
+(`<` versus `<=`).
+
+## Two ways to count overlaps
+
+<Snippet file="code/intervals.py" symbol="min_meeting_rooms" title="Heap of end times" />
+
+The heap holds the end time of every room currently in use, so its root is
+the room freeing up soonest. If the next meeting starts after that, reuse the
+room; otherwise open a new one. The heap's size is the answer.
+
+<Snippet file="code/intervals.py" symbol="max_concurrent" title="The same answer, swept" />
+
+The sweep is the more general tool, and the one to reach for when the
+question drifts — "at what *time* is it busiest", "how long is at least three
+things running", "total covered length". Break each interval into a `+1`
+event and a `−1` event, sort, and track a running total.
+
+**The tie-break is the bug.** At equal coordinates, `−1` must sort before
+`+1`, or a meeting ending exactly as another begins counts as an overlap.
+Sorting `(coordinate, delta)` tuples handles it for free because `−1 < +1` —
+which is a nice thing to point out rather than writing a custom comparator.
+
+## The greedy cousin
+
+<Snippet file="code/intervals.py" symbol="erase_overlap_intervals" title="Sort by end, keep greedily" />
+
+Fewest removals to make the rest disjoint is the same as *most* intervals
+kept, which is classic interval scheduling. Sort by end time and take
+greedily.
+
+The exchange argument, which you will be asked for: among all intervals that
+could be chosen next, the one that finishes earliest leaves the largest
+remaining window, so swapping any optimal solution's first choice for it
+never makes things worse. Therefore a greedy that always takes the earliest
+finisher is optimal. See [Greedy](../greedy/) for the shape of that
+argument in general.
+
+## Pitfalls
+
+- **Sorting by start when you need end.** Start-sorted greedy gives wrong
+  answers on scheduling problems. The two are not interchangeable.
+- **Mutating the input.** `merged[-1][1] = ...` writes into the caller's list
+  if you did not copy. The template copies with `[:]`.
+- **Empty input.** `intervals[0]` on an empty list is the crash that ends the
+  interview. One guard.
+- **Event tie-break** as above.
+- **Assuming sorted input.** Nothing promises it. Sort, and say the sort is
+  what makes the scan valid.
+
+## Anchor walkthroughs
+
+### Merge Intervals — the baseline
+
+**Clarify.** Sorted already? Touching intervals — merge or not? Modify in
+place or return new? Can intervals be degenerate (`[3,3]`)?
+
+**The insight.** After sorting by start, any interval that overlaps the
+current one must overlap the *most recent* one, because everything before it
+started earlier and has already been absorbed. So a single pass with one
+"current" interval suffices — no pairwise comparison.
+
+**Dry-run** `[[1,3],[2,6],[8,10],[15,18]]`. `[1,3]` opens. `[2,6]` starts at
+2 ≤ 3, so extend to `[1,6]`. `[8,10]` starts past 6, so push. Then `[15,18]`.
+Also run `[[1,4],[0,4]]` to prove the sort is doing work, and `[[1,4],[2,3]]`
+where the second is fully contained — that is where `max(...)` earns its
+place, because plain assignment would shrink the interval to `[1,3]`.
+
+**Follow-up:** Insert Interval, where the list is already sorted and you place
+one new interval in O(n) without re-sorting.
+
+### Meeting Rooms II — the one asked most
+
+**Clarify.** Can a room be reused the instant the previous meeting ends?
+(Almost always yes, and it changes `<` to `<=`.)
+
+**Give both solutions.** The heap version is the expected answer. The sweep
+version is the same complexity and generalises further. Offering both, and
+saying when you would prefer each, is a strong mid-level signal.
+
+**Complexity.** O(n log n) either way — the sort dominates; the heap
+operations are O(n log n) total.
+
+**Dry-run** `[[0,30],[5,10],[15,20]]`. `[0,30]` opens room 1. `[5,10]` starts
+before 30, so room 2. `[15,20]` starts at 15, and the earliest end is now 10
+≤ 15, so reuse. Answer 2. Then run `[[7,10],[2,4]]` to confirm the sort
+matters.
+
+**Follow-up:** return *which* meetings share a room, or handle a stream of
+meetings arriving live — the latter pushes you toward
+[ordered sets](../ordered-set/).
+
+### The Skyline Problem — the sweep at full strength
+
+A Hard, and the reason to learn the sweep properly.
+
+**The framing.** Each building is two events: at its left edge a height
+enters, at its right edge it leaves. Sweep left to right maintaining a
+multiset of active heights; whenever the *maximum* active height changes,
+that is a key point in the skyline.
+
+**Why a plain heap is not enough.** You must remove a specific height when a
+building ends, and a binary heap cannot delete from the middle. Two standard
+escapes: lazy deletion (push `(−height, end)`, discard roots whose `end` has
+passed) or a real multiset (`SortedList`). Knowing that a heap *cannot* do
+arbitrary deletion, and having a workaround ready, is the actual content of
+this question.
+
+**The event ordering** needs care: at the same x, process starts before ends,
+and among starts process taller first. Get this wrong and you emit duplicate
+or missing key points. Write the comparator down before coding.
+
+**Complexity.** O(n log n).

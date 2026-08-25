@@ -1,0 +1,174 @@
+---
+id: string-algorithms
+title: String Algorithms
+recognition:
+  - 'Substring search where n and m are both large enough that O(n·m) will not pass.'
+  - 'The words <strong>repeated substring</strong>, <strong>prefix that is also a suffix</strong>, <strong>shortest palindrome</strong>.'
+  - 'Comparing many substrings for equality — that is a rolling hash.'
+  - 'Longest duplicated substring, which is binary search plus hashing.'
+  - 'Palindromes where the O(n²) centre expansion is explicitly ruled out.'
+complexity: 'O(n + m)'
+template: code/string_algorithms.py
+anchors:
+  - longest-palindromic-substring
+  - shortest-palindrome
+  - longest-happy-prefix
+related:
+  - string-manipulation
+  - tries
+  - dp-strings
+  - binary-search-answer
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+This is the rarest group on the site, and the one with the worst
+effort-to-frequency ratio — right up until the moment it appears, when
+nothing else will do. Budget accordingly: know the failure function properly,
+know rolling hashes well enough to use them, and know that Manacher exists.
+
+The unifying observation is that **naive substring matching wastes what it
+already learned.** When `"abcabd"` fails to match at the `d`, you know the
+last three characters were `abc` — restarting from scratch throws that away.
+
+## The failure function
+
+<Snippet file="code/string_algorithms.py" symbol="build_failure" title="KMP's failure function" />
+
+`failure[i]` is the length of the longest proper prefix of `pattern[:i+1]`
+that is also a suffix of it. This table *is* KMP; the search that follows is
+four lines.
+
+<Snippet file="code/string_algorithms.py" symbol="kmp_search" title="Matching without backtracking" />
+
+Notice that the text index `i` never moves backwards. On a mismatch you fall
+back within the *pattern* using the table, so the text is scanned once —
+O(n + m) total.
+
+**The table is more useful than the search.** It answers, directly:
+
+- **Shortest repeated unit**: if `n % (n - failure[n-1]) == 0`, the string is
+  a repetition of a block of length `n - failure[n-1]`. That solves Repeated
+  Substring Pattern in two lines.
+- **Longest happy prefix**: literally `failure[n-1]`. The whole problem.
+- **Shortest palindrome**: build `s + "#" + reversed(s)`, and `failure[-1]` is
+  the longest palindromic *prefix* of `s`. The characters after it, reversed,
+  are what you prepend.
+
+That last one is the trick worth carrying: **a separator plus a reversal
+turns a palindrome question into a prefix-suffix question.** The `#` matters —
+without it the match can run past the boundary and overcount.
+
+## The Z-function
+
+<Snippet file="code/string_algorithms.py" symbol="z_function" title="Z-function" />
+
+`z[i]` is how far `s[i:]` agrees with `s` from the start. Many people find it
+easier to reason about than KMP, and it answers "does the pattern occur here"
+for every position at once when you run it over `pattern + "#" + text`.
+
+The `min(right - i, z[i - left])` line is the whole optimisation: inside a
+known matching window you already have the answer from an earlier position,
+so you skip straight to the boundary instead of re-comparing.
+
+## Rolling hashes
+
+<Snippet file="code/string_algorithms.py" symbol="rabin_karp" title="Rabin-Karp" />
+
+Slower than KMP for a single pattern, so nobody asks for it directly. The
+reason to know it is that it makes **substring equality O(1)** after an O(n)
+precomputation, which unlocks problems KMP cannot touch:
+
+> **Longest Duplicate Substring.** Binary search on the length L — if a
+> duplicate of length L exists, one of length L−1 does too, so the predicate
+> is monotone. For each L, hash every window and look for a collision. O(n log n).
+
+That combination — [binary search on the answer](../binary-search-answer/)
+plus hashing — is the intended solution to a Google favourite, and neither
+half is obvious alone.
+
+**Always verify a hash hit with a real comparison.** Collisions are rare, not
+impossible, and an interviewer who asks "what if two different substrings
+hash the same?" wants to hear that you already guarded it. Use a large prime
+modulus; a double hash with two moduli if they push.
+
+## Palindromes
+
+<Snippet file="code/string_algorithms.py" symbol="longest_palindrome" title="Centre expansion" />
+
+There are `2n − 1` centres, not `n`: a palindrome can be centred on a
+character (odd length) or between two (even). Forgetting the even case is the
+bug, and it fails on `"cbbd"`.
+
+O(n²), and that is the **right answer in a round**. Manacher gets it to O(n)
+but is genuinely hard to write correctly under time pressure. Say it exists,
+say it is O(n), and offer to write it only if there is time left over.
+
+## Pitfalls
+
+- **`failure[length - 1]`, not `failure[length]`,** when falling back. Off by
+  one here produces a table that looks plausible and matches incorrectly.
+- **Forgetting the separator** in the concatenation tricks. `s + rev(s)`
+  without `#` lets a match span the join.
+- **Only odd-length centres** in palindrome expansion.
+- **Hash collisions** left unverified.
+- **Reaching for KMP when `in` will do.** If the constraints allow O(n·m),
+  `pattern in text` is the correct answer, and using it shows judgement.
+  Python's implementation is already better than naive.
+
+## Anchor walkthroughs
+
+### Longest Palindromic Substring
+
+**Clarify.** Return the substring or its length? Is any longest one
+acceptable when there are ties? Case-sensitive?
+
+**Brute force.** Every substring checked for palindromicity: O(n³).
+
+**The insight.** Expand around centres. A palindrome is defined by its centre,
+there are `2n − 1` of them, and each expansion is O(n). O(n²) total, O(1)
+space — which is better than the O(n²) DP solution on space, and worth
+saying.
+
+**Dry-run** `"cbbd"`. Odd centres give length 1 everywhere. The even centre
+between the two `b`s gives `"bb"`. If you only wrote odd centres you return
+`"c"`, which is why this input is the sample.
+
+**Follow-up:** "can you do O(n)?" Name Manacher, describe it in one sentence
+(transform to `^#c#b#b#d$` so all palindromes are odd, then reuse mirrored
+radii like the Z-function does), and only write it if invited.
+
+### Shortest Palindrome
+
+Prepend the fewest characters to make `s` a palindrome.
+
+**The reframing.** You may only add at the front, so the part of `s` you keep
+must be a palindromic *prefix*. Find the longest one; everything after it,
+reversed, goes on the front. The whole problem is now "longest palindromic
+prefix".
+
+**The trick.** Build `s + "#" + reverse(s)` and run the failure function.
+`failure[-1]` is the length of the longest prefix of `s` that equals a suffix
+of `reverse(s)` — which is exactly the longest palindromic prefix of `s`.
+
+**Why the `#`.** Without it, `s = "aaa"` lets the match run past the boundary
+and report a length longer than `s` itself. Ask the interviewer to let you
+test that case; it demonstrates you know why the separator is there.
+
+**Complexity.** O(n), against an O(n²) centre-expansion alternative.
+
+### Longest Happy Prefix
+
+The failure function, returned directly.
+
+**Why it is worth doing** even though the code is three lines: it is the
+cleanest possible check that you actually understand what the table means
+rather than having memorised the loop. If you can explain why
+`failure[n-1]` is the answer, you understand KMP.
+
+**Follow-up:** Repeated Substring Pattern, which is the same table read
+differently — `n % (n - failure[n-1]) == 0` and `failure[n-1] > 0`. Two
+problems, one table, and being able to move between them quickly is the point
+of learning it at all.

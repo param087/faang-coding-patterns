@@ -1,0 +1,154 @@
+---
+id: sorting
+title: Sorting & Custom Comparators
+recognition:
+  - 'The answer depends on <strong>relative order</strong>, not position — schedule, arrange, pair up.'
+  - 'You need a <strong>comparator</strong> that is not simply ascending.'
+  - 'Values are bounded and small, which is a hint that counting or bucket sort is intended.'
+  - '"Sort by X" where X is derived — length, frequency, a custom key.'
+  - 'Sorting is the setup step for a greedy or two-pointer pass that follows.'
+complexity: 'O(n log n), or O(n) when the key range is bounded'
+template: code/sorting.py
+anchors:
+  - largest-number
+  - sort-array-by-parity
+  - wiggle-sort-ii
+related:
+  - intervals
+  - greedy
+  - heaps
+  - two-pointers
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+`sorted()` is one line. Everything interesting is in three decisions: what the
+key is, whether a comparison sort is even needed, and whether your custom
+ordering is *valid*.
+
+That third one is where interviews live.
+
+<Snippet file="code/sorting.py" symbol="largest_number" title="When the order is pairwise" />
+
+Arranging `[3, 30, 34, 5, 9]` into the largest number cannot be done with a
+per-item key. Neither numeric nor lexicographic order works: `9` must precede
+`34` (934 > 349), but `3` must precede `30` (330 > 303). The correct rule is
+pairwise — `a` before `b` when `a + b > b + a` as strings — which is exactly
+what `cmp_to_key` exists for.
+
+**Be ready to argue the comparator is a valid total order.** The interviewer
+will ask whether concatenation comparison is transitive. It is, and the
+one-line reason is that comparing `a+b` to `b+a` is comparing the same two
+numbers scaled consistently — but "yes, and here's why" beats a shrug.
+
+## When you do not need a comparison sort
+
+<Snippet file="code/sorting.py" symbol="top_k_frequent" title="Bucketing beats the log factor" />
+
+A comparison sort cannot beat O(n log n) in general, but you are rarely in the
+general case. If the key range is bounded — frequencies can never exceed `n`,
+scores are 0–100, characters are 26 letters — you can bucket and get O(n).
+
+Constraints announce this. When you see "0 ≤ nums[i] ≤ 10⁵" alongside n =
+10⁵, the problem is telling you counting sort fits.
+
+<Snippet file="code/sorting.py" symbol="sort_by_parity" title="Sometimes 'sort' means 'partition'" />
+
+Read the question again before reaching for a sort. "Move all evens before all
+odds" is a partition — O(n), one pass, in place. Answering it with
+`sorted(key=lambda x: x % 2)` is an O(n log n) answer to an O(n) question,
+and interviewers notice.
+
+## The merge you should be able to write
+
+<Snippet file="code/sorting.py" symbol="merge_sort" title="Merge sort, longhand" />
+
+Worth having in your fingers not because anyone needs you to reimplement
+`sorted`, but because the merge step is the substrate for counting
+inversions, Count of Smaller Numbers After Self, and Reverse Pairs. In those
+problems you count, during the merge, how many elements from the right half
+jumped ahead of a given element in the left half.
+
+Note the `<=` in the comparison: that is what makes it **stable**. Stability
+matters when you sort by one key and need ties to preserve a previous
+ordering, which is how multi-key sorts are built.
+
+## Python specifics worth knowing
+
+- `list.sort()` and `sorted()` are **Timsort**: stable, O(n log n) worst case,
+  and near-linear on partially ordered input.
+- Multi-key: `key=lambda x: (x[0], -x[1])` sorts ascending then descending.
+  Negating only works for numbers — for strings you need `cmp_to_key`.
+- `sorted()` allocates a new list; `.sort()` is in place. If the question says
+  O(1) extra space, neither is honest — Timsort uses O(n) worst case. Say so.
+- `heapq.nsmallest(k, ...)` is O(n log k) and beats a full sort when k is
+  small.
+
+## Pitfalls
+
+- **Sorting destroys indices.** If the answer needs original positions, sort
+  `(value, index)` pairs.
+- **`cmp_to_key` is slow** — it wraps every comparison in a Python call. Use a
+  plain key whenever the ordering can be expressed as one.
+- **The all-zeros case** in Largest Number: `[0, 0]` must produce `"0"`, not
+  `"00"`. One guard, and it is the test that fails.
+- **Sorting inside a loop.** An O(n log n) sort inside an O(n) loop is
+  O(n² log n). If you are re-sorting after each change, you want a
+  [heap](../heaps/) or an [ordered set](../ordered-set/) instead.
+
+## Anchor walkthroughs
+
+### Largest Number — the comparator question
+
+**Clarify.** All non-negative? (Yes — negatives would break the concatenation
+rule entirely.) Can the result have leading zeros? Is the answer a string?
+That last one matters: the number may not fit in 64 bits.
+
+**The wrong first answers**, both worth naming out loud so the interviewer
+knows you considered them: descending numeric order fails on `[3, 30]`;
+descending lexicographic fails on `[9, 34]` — no wait, it handles that one,
+but it fails on `[121, 12]` where "121" > "12" lexicographically yet 12121 <
+12112. Try both, watch them fail, then derive the pairwise rule.
+
+**The insight.** The only thing that matters about `a` and `b` is which
+concatenation is bigger. Make that the comparator.
+
+**The edge case** is `[0, 0]` → `"0"`.
+
+**Follow-up:** "smallest number" — flip the comparator, and now leading zeros
+matter for real.
+
+### Sort Array By Parity — resisting the sort
+
+Short, and the point is restraint.
+
+**The insight.** This is a partition, not a sort. Keep a write pointer at the
+front; every time you see an even number, swap it into the write slot and
+advance. One pass, O(1) space, and the odds end up at the back for free.
+
+**The follow-up** is Sort Array By Parity II (evens at even indices, odds at
+odd indices), which is two write pointers advancing by two. Same idea, and
+being able to extend it immediately is the signal.
+
+**Say the complexity difference explicitly**: "sorting would be O(n log n) but
+this only needs a partition, which is O(n)."
+
+### Wiggle Sort II — sorting plus a placement rule
+
+Arrange `nums` so that `nums[0] < nums[1] > nums[2] < nums[3]...`.
+
+**The clean solution.** Sort, then fill the *odd* indices from the largest
+values downward and the *even* indices from the median downward. Interleaving
+from the two halves this way keeps equal values as far apart as possible,
+which is the part that matters.
+
+**Why the obvious version fails.** Sorting and then swapping adjacent pairs
+breaks on duplicates: `[4,5,5,6]` produces `5,4,6,5`? — check it, and then
+check `[1,1,2,2]`, where naive pairing gives `1,1,2,2` with no wiggle at all.
+Equal values landing adjacent is the entire difficulty.
+
+**Complexity.** O(n log n) with the sort. The O(n) version uses quickselect
+for the median plus a three-way partition with index mapping — mention it
+exists, and only attempt it if you have time left over.

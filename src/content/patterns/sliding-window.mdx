@@ -1,0 +1,159 @@
+---
+id: sliding-window
+title: Sliding Window
+recognition:
+  - 'The words <strong>contiguous</strong>, <strong>substring</strong> or <strong>subarray</strong> plus a maximum, minimum or count.'
+  - 'A constraint that gets <em>worse</em> as the window grows — at most k distinct, no repeats, sum ≤ target.'
+  - 'All values are positive, so the running total is monotone.'
+  - 'Fixed window size k is given outright.'
+  - 'You wrote an O(n²) loop over every start and end.'
+complexity: 'O(n) — each index enters and leaves once'
+template: code/sliding_window.py
+anchors:
+  - longest-substring-without-repeating-characters
+  - minimum-window-substring
+  - subarrays-with-k-different-integers
+related:
+  - two-pointers
+  - prefix-sums
+  - monotonic-stack
+  - arrays-hashing
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Grow the window on the right. When it violates the invariant, shrink it from
+the left until it holds again. Every index enters once and leaves once, so
+despite the nested loop the whole scan is O(n).
+
+The word to fix in your head is **invariant**. Before writing anything, say
+out loud what must be true of the window — "no repeated character", "at most
+k distinct", "contains all of `t`". The code is then mechanical: grow, repair,
+record.
+
+<Snippet file="code/sliding_window.py" symbol="longest_unique_substring" title="The template" />
+
+Note that `left` only ever moves forward — `last_seen[char] >= left` is the
+guard. Without it, a character seen long before the current window would drag
+the left edge *backwards* and the window would stop being a window. It fails
+on `"dvdf"`, which is why that string is in the test cases.
+
+## The shrink is a `while`, not an `if`
+
+The single most common bug in this pattern. One incoming element can force
+*several* removals from the left before the invariant is restored, and an
+`if` only removes one.
+
+<Snippet file="code/sliding_window.py" symbol="min_window" title="Variable window with a satisfaction count" />
+
+The other thing worth stealing from that function is `missing`. Comparing two
+frequency dictionaries on every step would be O(alphabet) per index. Counting
+how many *kinds* of character are still unmet turns the check into an integer
+comparison, and the counter only changes when a count crosses its
+requirement exactly — note the `==` in `window[char] == need[char]`, not
+`>=`. Using `>=` double-counts and breaks the whole thing.
+
+## The at-most-k trick
+
+Some questions ask for **exactly** k, and a window cannot maintain "exactly"
+— shrinking is not monotone, so there is no repair rule. The standard escape
+is subtraction:
+
+```
+exactly(k) = at_most(k) − at_most(k − 1)
+```
+
+<Snippet file="code/sliding_window.py" symbol="subarrays_with_at_most_k_distinct" title="At most k — the reusable half" />
+
+`total += right - left + 1` is the counting idiom: every window ending at
+`right` and starting anywhere from `left` onward is valid, and there are
+exactly that many. Once you have `at_most`, "exactly" is two calls and a
+minus sign, which turns a Hard into two easy passes. This shows up as
+Subarrays with K Different Integers, Count Number of Nice Subarrays, and
+Binary Subarrays With Sum.
+
+## When the window does *not* apply
+
+If the array can contain **negative numbers** and the condition is about a
+sum, stop. Growing the window can decrease the sum, the invariant is not
+monotone, and the shrink rule is unsound. That problem belongs to
+[prefix sums](../prefix-sums/) instead.
+
+This is the single highest-value thing on this page. Reaching for a window on
+Subarray Sum Equals K is the most common wrong first answer in interviews,
+and noticing the negatives before you start is a strong signal.
+
+## Pitfalls
+
+- **`if` instead of `while`** on the shrink. Say it, check it, move on.
+- **Recording the answer in the wrong place.** For a *maximum* window, record
+  after repairing. For a *minimum* window, record inside the shrink loop,
+  while the window is still valid.
+- **Letting `left` move backwards** — guard with `max(left, ...)` or the
+  `>= left` test.
+- **Deleting zero-count keys.** `len(counts)` is only the distinct count if
+  you remove keys that hit zero. Forgetting this silently inflates the count.
+- **Fixed windows are simpler than you think.** If `k` is given, there is no
+  shrink loop at all: add the incoming, remove the outgoing at `i - k`.
+
+## Anchor walkthroughs
+
+### Longest Substring Without Repeating Characters
+
+**Clarify.** What is the alphabet — ASCII, lowercase only, Unicode? It decides
+whether a 128-slot array beats a dict, and whether the "O(1) space" claim is
+honest. Is the answer the length or the substring itself?
+
+**Brute force.** Every substring, checked for uniqueness: O(n³), or O(n²)
+with an incremental set. At n = 5·10⁴ both are dead.
+
+**The insight.** A window with no repeats. When the incoming character is
+already inside, jump the left edge past its previous occurrence — no need to
+step one at a time.
+
+**Dry-run** `"dvdf"`. Window grows to `dv`. Then `d` arrives; its last
+position was 0, which is `>= left`, so `left` becomes 1 and the window is
+`vd`. Then `f` gives `vdf`, length 3. If you had reset `left` to 0 or moved
+it backwards, you would get 2. Run this string, not `"abcabcbb"`.
+
+**Follow-up:** "at most k distinct characters" — the same loop with the
+invariant swapped, which is a good moment to show the template generalising.
+
+### Minimum Window Substring
+
+The Hard that shows up at Meta and Amazon more than its difficulty suggests.
+
+**Clarify.** Duplicates in `t` — does `t = "AABC"` need two As? (Yes, and
+that is why you need counts rather than a set.) Is the answer unique?
+
+**The structure.** Grow until valid, then shrink while *still* valid,
+recording as you shrink. The answer is recorded inside the inner loop, not
+after it — the reverse of the maximum-window case, and worth pointing at
+explicitly because it looks like a mistake to anyone skimming.
+
+**The complexity conversation.** O(|s| + |t|). The inner `while` looks like it
+makes it quadratic; it does not, because `left` never resets. Same amortised
+argument as everywhere else in this family.
+
+**Where it goes wrong:** using `>=` instead of `==` when decrementing
+`missing`, which decrements once per surplus character instead of once per
+satisfied requirement.
+
+### Subarrays with K Different Integers
+
+**Clarify.** Contiguous, and "exactly K" — confirm both, because the word
+"exactly" is the entire problem.
+
+**The trap.** You will try to maintain exactly-K directly and find there is no
+repair rule: when a new distinct value arrives you must shrink, but shrinking
+may drop below K, and there is no single correct amount to shrink by.
+
+**The insight.** `atMost(K) - atMost(K-1)`. Every subarray with at most K
+distinct values, minus those with at most K-1, leaves exactly those with
+precisely K.
+
+**Dry-run** `[1,2,1,2,3], K = 2`. `atMost(2)` is 12, `atMost(1)` is 5, so the
+answer is 7. Both calls are the same function — write it once and call it
+twice, and say that you are doing so; it looks like a trick until you name it.
