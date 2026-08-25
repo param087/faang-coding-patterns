@@ -1,0 +1,123 @@
+---
+import Base from '../../layouts/Base.astro'
+import ProblemTable from '../../components/ProblemTable.astro'
+import { PLANS, omittedBy } from '../../lib/plans.ts'
+import { PATTERN_BY_ID } from '../../data/taxonomy.ts'
+import { PATTERN_COMPLEXITY } from '../../lib/complexity.ts'
+import { routes } from '../../lib/paths.ts'
+import { readCatalogue } from '../../../scripts/catalogue.ts'
+
+export async function getStaticPaths() {
+  return PLANS.map((plan) => ({ params: { id: plan.id }, props: { plan } }))
+}
+
+const { plan } = Astro.props
+const catalogue = await readCatalogue()
+
+const weeks = plan.schedule.map((week) => {
+  const slugs = week.patterns.flatMap((id) => {
+    const entry = catalogue.patterns.get(id)
+    if (!entry) return []
+    return plan.scope === 'core+stretch' ? [...entry.core, ...entry.stretch] : entry.core
+  })
+  // A problem in two of the week's patterns should appear once.
+  return { ...week, slugs: [...new Set(slugs)] }
+})
+
+const total = new Set(weeks.flatMap((w) => w.slugs)).size
+const omitted = omittedBy(plan)
+---
+
+<Base title={plan.name} description={`${plan.name}: ${plan.audience}`}>
+  <article class="py-10 lg:py-14">
+    <nav class="text-ink-faint mb-6 text-[12px]" aria-label="Breadcrumb">
+      <a href={routes.plans()} class="hover:text-ink">Plans</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-ink-muted">{plan.name}</span>
+    </nav>
+
+    <header class="border-line-soft border-b pb-8">
+      <h1 class="text-[clamp(2rem,4.5vw,3rem)]">{plan.name}</h1>
+      <p class="text-ink-muted mt-4 max-w-[58ch] text-[15px] leading-relaxed">{plan.audience}</p>
+      <dl class="mt-6 flex flex-wrap gap-x-10 gap-y-4">
+        <div>
+          <dt class="text-ink-faint text-[11px] tracking-wide uppercase">Problems</dt>
+          <dd class="tabular mt-1 text-xl font-semibold">{total}</dd>
+        </div>
+        <div>
+          <dt class="text-ink-faint text-[11px] tracking-wide uppercase">Per week</dt>
+          <dd class="tabular mt-1 text-xl font-semibold">≈{Math.round(total / plan.weeks)}</dd>
+        </div>
+        <div>
+          <dt class="text-ink-faint text-[11px] tracking-wide uppercase">Commitment</dt>
+          <dd class="text-ink mt-1 text-[15px]">{plan.commitment}</dd>
+        </div>
+      </dl>
+    </header>
+
+    {
+      omitted.length > 0 && (
+        <aside class="border-on2/30 rounded-card mt-8 border p-5">
+          <h2 class="text-on2 mb-2 text-[13px] font-semibold">
+            What this track skips — {omitted.length} patterns
+          </h2>
+          <p class="text-ink-muted mb-3 text-[13px] leading-relaxed">
+            Stated plainly rather than quietly dropped. These are real categories and
+            they do come up; the track bets that your hours are better spent
+            elsewhere. If you have time at the end, this is the list.
+          </p>
+          <div class="flex flex-wrap gap-1.5">
+            {omitted.map((id) => (
+              <a
+                href={routes.pattern(id)}
+                class="border-line text-ink-muted hover:text-ink rounded-chip border px-2 py-1 text-[12px] transition-colors"
+              >
+                {PATTERN_BY_ID.get(id)?.name}
+              </a>
+            ))}
+          </div>
+        </aside>
+      )
+    }
+
+    <div class="mt-12 space-y-14">
+      {
+        weeks.map((week) => (
+          <section>
+            <div class="border-line-soft flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b pb-3">
+              <span class="tabular text-ink-faint text-[12px]">Week {week.n}</span>
+              <h2 class="text-[20px]">{week.focus}</h2>
+              <span class="tabular text-ink-faint ml-auto text-[12px]">
+                {week.slugs.length} problems
+              </span>
+            </div>
+
+            <p class="text-ink-muted mt-4 max-w-[62ch] text-[13px] leading-relaxed">{week.note}</p>
+
+            <div class="mt-4 flex flex-wrap gap-1.5">
+              {week.patterns.map((id) => {
+                const c = PATTERN_COMPLEXITY[id] ?? 'on'
+                return (
+                  <a
+                    href={routes.pattern(id)}
+                    class="spine border-line-soft bg-bg-raised hover:border-line rounded-chip border py-1.5 pr-2.5 pl-3 text-[12px] transition-colors"
+                    style={`--spine-color: var(--color-${c})`}
+                  >
+                    {PATTERN_BY_ID.get(id)?.name}
+                  </a>
+                )
+              })}
+            </div>
+
+            <ProblemTable slugs={week.slugs} caption={`Week ${week.n} — ${week.focus}`} />
+          </section>
+        ))
+      }
+    </div>
+  </article>
+</Base>
+
+<script>
+  import { hydrateCheckboxes } from '../../lib/progress.ts'
+  hydrateCheckboxes()
+</script>

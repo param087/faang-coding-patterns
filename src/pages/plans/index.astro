@@ -1,0 +1,65 @@
+---
+import Base from '../../layouts/Base.astro'
+import { PLANS } from '../../lib/plans.ts'
+import { routes } from '../../lib/paths.ts'
+import { readCatalogue } from '../../../scripts/catalogue.ts'
+
+const catalogue = await readCatalogue()
+
+function problemCount(plan: (typeof PLANS)[number]): number {
+  const ids = new Set(plan.schedule.flatMap((w) => w.patterns))
+  let n = 0
+  for (const id of ids) {
+    const entry = catalogue.patterns.get(id)
+    if (!entry) continue
+    n += entry.core.length + (plan.scope === 'core+stretch' ? entry.stretch.length : 0)
+  }
+  return n
+}
+---
+
+<Base
+  title="Plans"
+  description="Four, eight and twelve week study tracks over the 39 patterns, with real problem counts."
+>
+  <div class="border-line-soft border-b py-10 lg:py-14">
+    <h1 class="text-[clamp(2rem,4.5vw,3rem)]">Study plans</h1>
+    <p class="text-ink-muted mt-4 max-w-[62ch] text-[15px] leading-relaxed">
+      Three tracks over the same 39 patterns. They differ in coverage, not pace —
+      the sprint gambles on skipping the long tail, the thorough track keeps
+      everything and revisits it. Counts are generated from the catalogue, so they
+      are what you would actually do, not a round number.
+    </p>
+  </div>
+
+  <div class="grid gap-4 py-12 lg:grid-cols-3">
+    {
+      PLANS.map((plan) => (
+        <a
+          href={routes.plan(plan.id)}
+          class="border-line-soft bg-bg-raised hover:border-line rounded-card flex flex-col gap-4 border p-6 transition-[transform,border-color] duration-200 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
+        >
+          <div class="flex items-baseline justify-between gap-3">
+            <h2 class="text-[18px]">{plan.name}</h2>
+            <span class="tabular text-ink-faint text-[12px]">{plan.weeks}w</span>
+          </div>
+          <p class="text-ink-muted grow text-[13px] leading-relaxed">{plan.audience}</p>
+          <dl class="border-line-soft space-y-1.5 border-t pt-4 text-[12px]">
+            <div class="flex justify-between gap-2">
+              <dt class="text-ink-faint">Problems</dt>
+              <dd class="tabular">{problemCount(plan)}</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-ink-faint">Patterns</dt>
+              <dd class="tabular">{new Set(plan.schedule.flatMap((w) => w.patterns)).size} of 39</dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-ink-faint">Daily</dt>
+              <dd class="text-ink-muted text-right">{plan.commitment}</dd>
+            </div>
+          </dl>
+        </a>
+      ))
+    }
+  </div>
+</Base>

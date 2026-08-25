@@ -1,0 +1,91 @@
+---
+import Base from '../../layouts/Base.astro'
+import CompanyChip from '../../components/CompanyChip.astro'
+import { companies, coreCompanies } from '../../lib/problems.ts'
+import { routes } from '../../lib/paths.ts'
+import { COMPANY_SNAPSHOT_DATE } from '../../../scripts/sources.ts'
+
+// Anything with fewer than three recent tags is noise rather than signal — it
+// still works in the explorer, it just doesn't deserve a row here.
+const listed = companies.filter((c) => !c.core && c.recent >= 3)
+const thin = companies.length - listed.length - coreCompanies.length
+---
+
+<Base
+  title="Companies"
+  description="Which companies ask what, across 659 companies of LeetCode company-tag data."
+>
+  <div class="border-line-soft border-b py-10 lg:py-14">
+    <h1 class="text-[clamp(2rem,4.5vw,3rem)]">Companies</h1>
+    <p class="text-ink-muted mt-4 max-w-[62ch] text-[15px] leading-relaxed">
+      Frequencies come from a community snapshot of LeetCode's company tags dated
+      {COMPANY_SNAPSHOT_DATE}. They tell you where to spend your next hour. They do
+      not tell you what you will be asked.
+    </p>
+  </div>
+
+  <section class="py-12">
+    <h2 class="text-[22px]">The six with playbooks</h2>
+    <p class="text-ink-muted mt-2 max-w-[60ch] text-[13px] leading-relaxed">
+      These get badge columns on every problem row, plus a page on how their loop
+      actually runs.
+    </p>
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {
+        coreCompanies.map((c) => (
+          <a
+            href={routes.company(c.id)}
+            class="border-line-soft bg-bg-raised hover:border-line rounded-card flex items-center gap-3 border p-4 transition-colors"
+          >
+            <CompanyChip companyId={c.id} size="md" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-[14px] font-medium">{c.name}</span>
+              <span class="tabular text-ink-faint block text-[11px]">
+                {c.recent} in 6 months · {c.total} all time
+              </span>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="border-line-soft border-t py-12">
+    <div class="flex flex-wrap items-baseline justify-between gap-3">
+      <h2 class="text-[22px]">Everyone else</h2>
+      <p class="text-ink-faint text-[12px]">
+        {listed.length} companies with 3+ problems tagged in the last six months
+        {thin > 0 && <> · {thin} thinner ones are still searchable in the explorer</>}
+      </p>
+    </div>
+
+    <div class="border-line-soft rounded-card mt-6 overflow-hidden border">
+      <table class="w-full border-collapse text-left text-[13px]">
+        <caption class="sr-only">Companies by recent tagged problems</caption>
+        <thead class="text-ink-faint border-line-soft border-b text-[11px] tracking-wide uppercase">
+          <tr>
+            <th scope="col" class="py-2 pl-4">Company</th>
+            <th scope="col" class="w-28 py-2 text-right">6 months</th>
+            <th scope="col" class="w-28 py-2 pr-4 text-right">All time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            listed.map((c) => (
+              <tr class="border-line-soft hover:bg-bg-raised/60 border-b transition-colors last:border-b-0">
+                <td class="py-2 pl-4">
+                  <a href={routes.company(c.id)} class="flex items-center gap-2.5">
+                    <CompanyChip companyId={c.id} />
+                    <span class="text-ink-muted hover:text-ink">{c.name}</span>
+                  </a>
+                </td>
+                <td class="tabular text-ink-muted py-2 text-right">{c.recent}</td>
+                <td class="tabular text-ink-faint py-2 pr-4 text-right">{c.total}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</Base>
