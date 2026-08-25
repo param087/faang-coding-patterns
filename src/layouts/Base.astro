@@ -1,0 +1,127 @@
+---
+import '../styles/global.css'
+import { routes } from '../lib/paths.ts'
+
+interface Props {
+  title: string
+  description: string
+  /** Wide pages (the explorer) opt out of the prose measure. */
+  wide?: boolean
+}
+
+const { title, description, wide = false } = Astro.props
+const full = title === 'home' ? 'Read the Constraints First' : `${title} · Coding Patterns`
+
+const nav = [
+  { label: 'Patterns', href: routes.patterns() },
+  { label: 'Explorer', href: routes.explorer() },
+  { label: 'Companies', href: routes.companies() },
+  { label: 'Plans', href: routes.plans() },
+]
+const path = Astro.url.pathname
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{full}</title>
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" href={`${import.meta.env.BASE_URL}/favicon.svg`} type="image/svg+xml" />
+    <meta property="og:title" content={full} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <script is:inline>
+      // Applied before first paint so the chosen theme never flashes.
+      const saved = localStorage.getItem('theme')
+      const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
+      document.documentElement.dataset.theme = saved ?? (prefersLight ? 'light' : 'dark')
+    </script>
+  </head>
+
+  <body class="bg-bg text-ink min-h-screen">
+    <a
+      href="#main"
+      class="bg-bg-raised border-line focus:ring-onlogn sr-only rounded border px-4 py-2 focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"
+    >
+      Skip to content
+    </a>
+
+    <header class="border-line-soft bg-bg/85 sticky top-0 z-40 border-b backdrop-blur-md">
+      <div class="mx-auto flex h-14 max-w-7xl items-center gap-6 px-5">
+        <a href={routes.home()} class="group flex items-center gap-2.5">
+          <!--
+            The wordmark is the complexity ramp itself: five bars, cheap to
+            expensive, left to right. It is the site's whole thesis in 20px.
+          -->
+          <span class="flex items-end gap-[2px]" aria-hidden="true">
+            <span class="w-[3px] rounded-[1px] bg-o1" style="height:6px"></span>
+            <span class="w-[3px] rounded-[1px] bg-on" style="height:9px"></span>
+            <span class="w-[3px] rounded-[1px] bg-onlogn" style="height:12px"></span>
+            <span class="w-[3px] rounded-[1px] bg-on2" style="height:15px"></span>
+            <span class="w-[3px] rounded-[1px] bg-oexp" style="height:18px"></span>
+          </span>
+          <span class="display text-[15px] tracking-tight">Constraints First</span>
+        </a>
+
+        <nav class="ml-auto flex items-center gap-1" aria-label="Main">
+          {
+            nav.map((item) => (
+              <a
+                href={item.href}
+                aria-current={path.startsWith(item.href) ? 'page' : undefined}
+                class:list={[
+                  'rounded-chip px-2.5 py-1.5 text-[13px] transition-colors',
+                  path.startsWith(item.href)
+                    ? 'bg-bg-raised text-ink'
+                    : 'text-ink-muted hover:text-ink',
+                ]}
+              >
+                {item.label}
+              </a>
+            ))
+          }
+          <button
+            type="button"
+            id="theme-toggle"
+            class="text-ink-muted hover:text-ink hover:bg-bg-raised rounded-chip ml-1 grid h-8 w-8 place-items-center transition-colors"
+            aria-label="Switch theme"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </svg>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class:list={['mx-auto px-5', wide ? 'max-w-[110rem]' : 'max-w-7xl']}>
+      <slot />
+    </main>
+
+    <footer class="border-line-soft text-ink-faint mt-24 border-t">
+      <div class="mx-auto max-w-7xl space-y-2 px-5 py-10 text-[12px] leading-relaxed">
+        <p>
+          Problem metadata from the public LeetCode API. Company tags are a community
+          snapshot dated 12 July 2026 and are approximate — treat them as a signal, not a
+          promise. Problem statements are never reproduced here; every problem links out.
+        </p>
+        <p>
+          Brand marks via <a class="hover:text-ink underline underline-offset-2" href="https://simpleicons.org">Simple Icons</a> (CC0);
+          the logos remain trademarks of their owners and are used only to identify the company.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      const toggle = document.getElementById('theme-toggle')
+      toggle?.addEventListener('click', () => {
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        localStorage.setItem('theme', next)
+      })
+    </script>
+  </body>
+</html>

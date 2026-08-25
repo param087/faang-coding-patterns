@@ -1,0 +1,224 @@
+---
+import { getCollection, render } from 'astro:content'
+import Base from '../../layouts/Base.astro'
+import ProblemTable from '../../components/ProblemTable.astro'
+import ComplexityBadge from '../../components/ComplexityBadge.astro'
+import CompanyChip from '../../components/CompanyChip.astro'
+import { PATTERN_BY_ID } from '../../data/taxonomy.ts'
+import { PATTERN_COMPLEXITY } from '../../lib/complexity.ts'
+import { statsForPattern } from '../../lib/problems.ts'
+import { readCatalogue } from '../../../scripts/catalogue.ts'
+import { routes } from '../../lib/paths.ts'
+
+export async function getStaticPaths() {
+  const pages = await getCollection('patterns')
+  return pages.map((entry) => ({ params: { id: entry.data.id }, props: { entry } }))
+}
+
+const { entry } = Astro.props
+const { Content } = await render(entry)
+const data = entry.data
+
+const pattern = PATTERN_BY_ID.get(data.id)
+const complexity = PATTERN_COMPLEXITY[data.id] ?? 'on'
+const stats = statsForPattern(data.id)
+
+const catalogue = await readCatalogue()
+const lists = catalogue.patterns.get(data.id) ?? { core: [], stretch: [], anchors: [] }
+
+const written = new Set((await getCollection('solutions')).map((s) => s.data.slug))
+---
+
+<Base title={data.title} description={pattern?.tagline ?? data.title}>
+  <article class="py-10 lg:py-14">
+    <nav class="text-ink-faint mb-6 text-[12px]" aria-label="Breadcrumb">
+      <a href={routes.patterns()} class="hover:text-ink">Patterns</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-ink-muted">{data.title}</span>
+    </nav>
+
+    <header class="border-line-soft grid gap-8 border-b pb-10 lg:grid-cols-[1.4fr_1fr]">
+      <div>
+        <h1 class="text-[clamp(2rem,4.5vw,3rem)]">{data.title}</h1>
+        <p class="text-ink-muted mt-4 max-w-[56ch] text-[15px] leading-relaxed">
+          {pattern?.tagline}
+        </p>
+        <div class="mt-5 flex flex-wrap items-center gap-2">
+          <ComplexityBadge id={complexity} label={data.complexity} size="md" />
+          <span class="tabular text-ink-faint text-[12px]">
+            {lists.core.length} core · {lists.stretch.length} stretch
+          </span>
+        </div>
+      </div>
+
+      <!--
+        Recognition cues sit above everything else on purpose: in a round you
+        reach this page to answer "is it this pattern?", not to read theory.
+      -->
+      <aside class="border-line rounded-card border p-5" style={`border-color: color-mix(in oklab, var(--color-${complexity}) 26%, transparent)`}>
+        <h2 class="text-ink-muted mb-3 text-[11px] tracking-[0.14em] uppercase">
+          Recognise it in 10 seconds
+        </h2>
+        <ul class="space-y-2">
+          {
+            data.recognition.map((cue) => (
+              <li class="text-ink flex gap-2.5 text-[13px] leading-relaxed">
+                <span
+                  class="mt-[7px] h-1 w-1 shrink-0 rounded-full"
+                  style={`background: var(--color-${complexity})`}
+                  aria-hidden="true"
+                />
+                <span set:html={cue} />
+              </li>
+            ))
+          }
+        </ul>
+      </aside>
+    </header>
+
+    {
+      stats.topCompanies.length > 0 && (
+        <section class="border-line-soft flex flex-wrap items-center gap-2 border-b py-5">
+          <span class="text-ink-faint mr-1 text-[11px] tracking-[0.14em] uppercase">
+            Problems in this pattern, by company
+          </span>
+          {stats.topCompanies.slice(0, 6).map((c) => (
+            <CompanyChip companyId={c.company.id} count={c.count} size="md" />
+          ))}
+        </section>
+      )
+    }
+
+    <!-- The rail keeps the practice table and the anchors one click away from
+         anywhere in a long page, and gives the prose column a right edge. -->
+    <div class="mt-10 gap-14 lg:grid lg:grid-cols-[minmax(0,68ch)_1fr]">
+      <div class="min-w-0">
+        <div class="prose-page">
+          <Content />
+        </div>
+
+        <section class="mt-14">
+          <h2 id="practice" class="text-[22px]">Practice</h2>
+          <p class="text-ink-muted mt-2 text-[13px] leading-relaxed">
+            Core first, in order — they build on each other. Frequencies are the
+            six-month window from the July 2026 company-tag snapshot.
+          </p>
+          <ProblemTable slugs={lists.core} caption="Core — do these first" solved={written} />
+          {
+            lists.stretch.length > 0 && (
+              <ProblemTable
+                slugs={lists.stretch}
+                caption="Stretch — once core is solid"
+                solved={written}
+              />
+            )
+          }
+        </section>
+      </div>
+
+      <aside class="hidden lg:block">
+        <div class="sticky top-20 space-y-6">
+          <nav aria-labelledby="toc-heading">
+            <h2 id="toc-heading" class="text-ink-faint mb-3 text-[11px] tracking-[0.14em] uppercase">
+              On this page
+            </h2>
+            <ul class="border-line-soft space-y-2 border-l" id="toc"></ul>
+          </nav>
+
+          <div class="border-line-soft rounded-card border p-4">
+            <h2 class="text-ink-faint mb-3 text-[11px] tracking-[0.14em] uppercase">Difficulty</h2>
+            <dl class="space-y-1.5 text-[12px]">
+              {
+                (
+                  [
+                    ['Easy', stats.easy],
+                    ['Medium', stats.medium],
+                    ['Hard', stats.hard],
+                  ] as const
+                ).map(([label, n]) => (
+                  <div class="flex items-center gap-2">
+                    <dt class="text-ink-muted w-14">{label}</dt>
+                    <dd class="flex flex-1 items-center gap-2">
+                      <span class="bg-line-soft h-1 flex-1 overflow-hidden rounded-full">
+                        <span
+                          class="bg-ink-faint block h-full rounded-full"
+                          style={`width:${stats.total ? (n / stats.total) * 100 : 0}%`}
+                        />
+                      </span>
+                      <span class="tabular text-ink-faint w-6 text-right">{n}</span>
+                    </dd>
+                  </div>
+                ))
+              }
+            </dl>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    {
+      data.related.length > 0 && (
+        <section class="border-line-soft mt-12 border-t pt-8">
+          <h2 class="text-ink-muted mb-4 text-[11px] tracking-[0.14em] uppercase">Related</h2>
+          <div class="flex flex-wrap gap-2">
+            {data.related.map((id) => {
+              const rel = PATTERN_BY_ID.get(id)
+              const relC = PATTERN_COMPLEXITY[id] ?? 'on'
+              return (
+                <a
+                  href={routes.pattern(id)}
+                  class="spine border-line-soft bg-bg-raised hover:border-line rounded-chip border py-2 pr-3 pl-3.5 text-[13px] transition-colors"
+                  style={`--spine-color: var(--color-${relC})`}
+                >
+                  {rel?.name}
+                </a>
+              )
+            })}
+          </div>
+        </section>
+      )
+    }
+  </article>
+</Base>
+
+<script>
+  import { hydrateCheckboxes } from '../../lib/progress.ts'
+
+  hydrateCheckboxes()
+
+  // Build the contents rail from the headings MDX actually rendered, so it can
+  // never drift from the page. Highlights the section currently in view.
+  const list = document.getElementById('toc')
+  const headings = [...document.querySelectorAll<HTMLElement>('.prose-page h2, #practice')]
+  if (list && headings.length) {
+    for (const heading of headings) {
+      heading.id ||= (heading.textContent ?? '')
+        .toLowerCase()
+        .replace(/[^\w]+/g, '-')
+        .replace(/^-|-$/g, '')
+      const li = document.createElement('li')
+      const a = document.createElement('a')
+      a.href = `#${heading.id}`
+      a.textContent = heading.textContent
+      a.className =
+        'block border-l -ml-px pl-3 py-0.5 text-[12px] leading-snug border-transparent text-ink-faint hover:text-ink transition-colors'
+      a.dataset.for = heading.id
+      li.append(a)
+      list.append(li)
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const link = list.querySelector<HTMLElement>(`[data-for="${entry.target.id}"]`)
+          if (!link) continue
+          link.classList.toggle('text-ink', entry.isIntersecting)
+          link.classList.toggle('border-onlogn', entry.isIntersecting)
+          link.classList.toggle('border-transparent', !entry.isIntersecting)
+        }
+      },
+      { rootMargin: '-70px 0px -70% 0px' }
+    )
+    for (const heading of headings) observer.observe(heading)
+  }
+</script>

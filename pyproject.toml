@@ -1,0 +1,29 @@
+[project]
+name = "faang-coding-patterns"
+version = "0.1.0"
+description = "Tested Python templates and solutions behind the FAANG SDE-2 coding-round handbook."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.setuptools]
+packages = ["code", "solutions"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# N802/N803: LeetCode signatures are camelCase and we keep them so the code
+# pastes straight into an interview editor without renaming.
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"solutions/*" = ["E501"]

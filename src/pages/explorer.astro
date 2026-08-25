@@ -1,0 +1,42 @@
+---
+import Base from '../layouts/Base.astro'
+import Explorer from '../components/Explorer.tsx'
+import { problems, companies, logos } from '../lib/problems.ts'
+import { COMPANY_SNAPSHOT_DATE } from '../../scripts/sources.ts'
+
+// Ship only the fields the table reads. The full records carry tag arrays and
+// per-window maps for six companies, which triples the payload for nothing.
+const slim = problems.map((p) => ({
+  slug: p.slug,
+  id: p.id,
+  title: p.title,
+  difficulty: p.difficulty,
+  premium: p.premium,
+  pattern: p.pattern,
+  curated: p.curated,
+  blind75: p.blind75,
+  nc150: p.nc150,
+  companies: p.companies,
+  heat: p.heat,
+}))
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<Base
+  title="Explorer"
+  description="Filter every LeetCode problem by pattern, difficulty and which of 659 companies asks it."
+  wide
+>
+  <div class="border-line-soft border-b py-8">
+    <h1 class="text-[clamp(1.8rem,3.5vw,2.5rem)]">Explorer</h1>
+    <p class="text-ink-muted mt-3 max-w-[62ch] text-[14px] leading-relaxed">
+      Every problem the index knows, filterable by pattern, difficulty and company.
+      Frequencies come from a community snapshot of LeetCode's company tags dated
+      {COMPANY_SNAPSHOT_DATE} — a signal, not a promise. Your filters live in the URL,
+      so a view is shareable.
+    </p>
+  </div>
+
+  <Explorer client:load problems={slim} companies={companies} logos={logos} base={base} />
+</Base>

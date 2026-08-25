@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.astro/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.DS_Store
+.env
+.env.*
+# Vendored logo binaries are committed (see scripts/fetch-logos.ts); nothing here.

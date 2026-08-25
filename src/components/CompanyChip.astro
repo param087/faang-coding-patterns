@@ -1,0 +1,92 @@
+---
+/**
+ * A company's brand mark in its own hex, with how often it asks the thing.
+ *
+ * Marks are single-path SVGs vendored at build time, so a chip is inline
+ * markup with no request and no layout shift. Companies with no public mark
+ * get a monogram on a deterministic hue rather than a guessed logo.
+ *
+ * Near-black marks (Apple, Uber, Bloomberg) carry a `hexDark` substitute and
+ * swap to near-white on the dark canvas — which is what those brands do on
+ * dark backgrounds themselves.
+ */
+import { logoFor, monogram, companyById } from '../lib/problems.ts'
+
+interface Props {
+  companyId: string
+  /** 0-100. Per-problem "how often this exact problem comes up". */
+  frequency?: number
+  /** Per-pattern "how many problems in this pattern they ask". */
+  count?: number
+  size?: 'sm' | 'md'
+  /** Show the company name next to the mark. */
+  withName?: boolean
+}
+
+const { companyId, frequency, count, size = 'sm', withName = false } = Astro.props
+const logo = logoFor(companyId)
+const company = companyById.get(companyId)
+const name = company?.name ?? companyId
+const px = size === 'sm' ? 13 : 18
+
+const value = frequency !== undefined ? `${Math.round(frequency)}%` : count !== undefined ? String(count) : null
+const label =
+  frequency !== undefined
+    ? `${name}, asked at ${Math.round(frequency)}% frequency`
+    : count !== undefined
+      ? `${name}, ${count} problems in this pattern`
+      : name
+
+// One custom property drives mark, border and wash, so the dark-theme swap in
+// global.css only has to override a single value.
+const vars = [
+  `--logo: #${logo.hex}`,
+  logo.hexDark ? `--logo-dark: #${logo.hexDark}` : '',
+].filter(Boolean).join(';')
+---
+
+<span
+  class:list={[
+    'logo-chip inline-flex items-center gap-1.5 rounded-chip border align-middle',
+    size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-1 text-xs',
+  ]}
+  style={vars}
+  title={label}
+>
+  {
+    logo.path ? (
+      <svg width={px} height={px} viewBox="0 0 24 24" aria-hidden="true" class="logo-mark shrink-0">
+        <path d={logo.path} />
+      </svg>
+    ) : (
+      <span
+        class="logo-monogram tabular grid shrink-0 place-items-center rounded-[3px] font-semibold"
+        style={`width:${px}px;height:${px}px;font-size:${px * 0.5}px`}
+        aria-hidden="true"
+      >
+        {monogram(name)}
+      </span>
+    )
+  }
+  {withName && <span class="text-ink-muted whitespace-nowrap">{name}</span>}
+  {value !== null && <span class="tabular text-ink-muted font-medium">{value}</span>}
+  <span class="sr-only">{label}</span>
+</span>
+
+<style is:global>
+  .logo-chip {
+    --mark: var(--logo);
+    border-color: color-mix(in oklab, var(--mark) 32%, transparent);
+    background: color-mix(in oklab, var(--mark) 9%, transparent);
+  }
+  :root[data-theme='dark'] .logo-chip {
+    --mark: var(--logo-dark, var(--logo));
+  }
+  .logo-mark path {
+    fill: var(--mark);
+  }
+  .logo-monogram {
+    background: var(--mark);
+    color: oklch(0.15 0.01 255);
+  }
+</style>

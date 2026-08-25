@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content'
+import Base from '../../layouts/Base.astro'
+import PatternCard from '../../components/PatternCard.astro'
+import { patternsByGroup, PATTERNS } from '../../data/taxonomy.ts'
+import { COMPLEXITY_CLASSES } from '../../lib/complexity.ts'
+
+const groups = patternsByGroup()
+const written = new Set((await getCollection('patterns')).map((p) => p.data.id))
+let counter = 0
+---
+
+<Base
+  title="Patterns"
+  description="All 39 categories of coding problem a FAANG SDE-2 interview can ask, grouped and colour-coded by complexity."
+>
+  <div class="border-line-soft border-b py-10 lg:py-14">
+    <h1 class="text-[clamp(2rem,4.5vw,3rem)]">The {PATTERNS.length} patterns</h1>
+    <p class="text-ink-muted mt-4 max-w-[62ch] text-[15px] leading-relaxed">
+      Wider than the usual list on purpose. Monotonic stack, union-find, sweep line
+      and ordered-set get their own page here because you reach for them
+      independently — and Design, which no popular list has a bucket for, is one of
+      the highest-frequency categories at SDE-2.
+    </p>
+
+    <!-- The ramp, stated as a legend, since every spine on this page uses it. -->
+    <div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2">
+      <span class="text-ink-faint text-[11px] tracking-[0.14em] uppercase">Spine colour</span>
+      {
+        COMPLEXITY_CLASSES.map((c) => (
+          <span class="flex items-center gap-2">
+            <span
+              class="h-3 w-[3px] rounded-[1px]"
+              style={`background: var(--color-${c.id})`}
+              aria-hidden="true"
+            />
+            <span class="tabular text-ink-muted text-[12px]">{c.label}</span>
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  {
+    groups.map(({ group, patterns }) => (
+      <section class="border-line-soft border-b py-12 last:border-b-0">
+        <div class="mb-8 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <h2 class="text-[22px]">{group.name}</h2>
+          <p class="text-ink-muted max-w-[52ch] text-[13px] leading-relaxed">{group.blurb}</p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {patterns.map((pattern) => (
+            <div class:list={[!written.has(pattern.id) && 'opacity-60']}>
+              <PatternCard pattern={pattern} index={++counter} />
+            </div>
+          ))}
+        </div>
+      </section>
+    ))
+  }
+</Base>

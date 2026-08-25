@@ -1,0 +1,168 @@
+---
+id: monotonic-stack
+title: Monotonic Stack & Deque
+recognition:
+  - 'The words <strong>next greater</strong>, <strong>previous smaller</strong>, <strong>span</strong>, <strong>warmer</strong> or <strong>days until</strong>.'
+  - 'You wrote an O(n²) double loop where the inner one scans right until it finds something bigger.'
+  - 'The answer for each element depends on its <em>nearest</em> qualifying neighbour, not on all of them.'
+  - 'A histogram, skyline, or "largest rectangle / most water" framing.'
+  - 'A sliding window that needs a max or min, where a heap would be O(n log n) and the bound says O(n).'
+complexity: 'O(n)'
+template: code/monotonic_stack.py
+anchors:
+  - daily-temperatures
+  - largest-rectangle-in-histogram
+  - sliding-window-maximum
+related:
+  - stack
+  - sliding-window
+  - heaps
+  - two-pointers
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Keep a stack of the elements whose answer you do not know yet.
+
+That single sentence is the pattern. As you scan left to right, an element's
+answer is unknown until something arrives that resolves it — the next taller
+temperature, the next higher bar. So you park it on a stack. When a value
+arrives that resolves the top of the stack, you pop and record. Because
+whatever is left on the stack is always sorted, the stack is *monotonic*, and
+the first element that fails to pop tells you to stop.
+
+The part worth internalising is why the nested `while` does not make this
+quadratic. Every index is pushed exactly once and popped at most once, so
+across the whole scan the inner loop runs at most n times in total. Amortised
+O(n). Say that out loud in the round — interviewers ask, and "it looks O(n²)
+but it is O(n) because each index is pushed and popped once" is the answer
+they are listening for.
+
+<Snippet file="code/monotonic_stack.py" symbol="next_greater" title="The template — next greater element" />
+
+The direction of the comparison is the only thing that changes between
+problems, and it is worth being deliberate rather than guessing:
+
+| You want | Stack holds | Pop while |
+| --- | --- | --- |
+| Next greater to the right | decreasing values | `nums[stack[-1]] < value` |
+| Next smaller to the right | increasing values | `nums[stack[-1]] > value` |
+| Previous greater to the left | decreasing values | `nums[stack[-1]] <= value`, then read `stack[-1]` |
+| Previous smaller to the left | increasing values | `nums[stack[-1]] >= value`, then read `stack[-1]` |
+
+"Next" problems record the answer **as you pop**. "Previous" problems record
+the answer **after popping**, from whatever survived. Histogram problems need
+both directions, which is why they feel harder than they are.
+
+<Snippet file="code/monotonic_stack.py" symbol="previous_smaller" title="The other half — previous smaller element" />
+
+## When it is a deque instead
+
+A stack cannot evict from the bottom, and a sliding window has to: once an
+index falls out of the window it must go, even though it is still the maximum
+of what remains behind it. Swap the stack for a deque and pop from both ends —
+the back for elements that can never win again, the front for elements that
+have aged out.
+
+<Snippet file="code/monotonic_stack.py" symbol="sliding_window_max" title="Monotonic deque — sliding window maximum" />
+
+## Pitfalls
+
+- **Store indices, not values.** You almost always need the distance
+  (`i - stack[-1]`) or the width of a rectangle. Storing values throws that
+  away and you will rewrite the loop.
+- **`<` versus `<=` decides how duplicates behave.** With `<`, equal elements
+  do not resolve each other and each waits for something strictly greater.
+  Ask the interviewer which one they want for equal values — it is a real
+  clarifying question, not filler.
+- **The stack is not empty when the loop ends.** Everything left has no answer.
+  Initialising `result` to `-1` handles it; a trailing sentinel value
+  (append `0` to a histogram) handles it for problems where you must drain.
+- **Circular arrays** (Next Greater Element II) are the same loop run over
+  `2n` iterations with `i % n`, pushing only during the first pass.
+- **The deque holds indices too**, and the eviction check is `window[0] <= i - k`.
+  Getting that off by one silently returns the previous window's answer.
+
+## Anchor walkthroughs
+
+### Daily Temperatures — the template, unmodified
+
+You are given daily temperatures and must return, for each day, how many days
+until a warmer one. It is the pattern in its plainest form and a good one to
+be able to write without thinking.
+
+**Clarify first.** Are temperatures bounded? (LeetCode says 30–100, which is a
+hint that a 71-bucket approach exists — mention it, then do the stack.) What
+if no warmer day comes? (Zero.)
+
+**Brute force.** For each day, scan right until you find something warmer.
+O(n²), and at n = 10⁵ that is 10¹⁰ operations. Say the number; it justifies
+what comes next.
+
+**The insight.** When you are scanning and hit day `i`, day `i` resolves
+*every* earlier day that was waiting for something warmer — and those days are
+exactly the ones sitting on the stack in decreasing order. So instead of each
+day searching forward, each day answers everyone still waiting on it.
+
+**The code** is `next_greater` with the recorded value changed from `nums[i]`
+to `i - popped`, because the question asks for a distance rather than a value.
+
+**Dry-run** `[73, 74, 75, 71, 69, 72, 76, 73]`. Push 73. 74 arrives, pops 73
+(answer 1). 75 pops 74 (answer 1). 71 and 69 stack up behind 75. 72 pops 69
+(answer 1) and 71 (answer 2). 76 pops 72, then 75 — answer 4 for 75, which is
+the case that catches people who stored values instead of indices.
+
+**Follow-up they ask:** "Can you do it in O(1) extra space?" You cannot in
+general, but with the 30–100 bound you can walk a 71-element array of
+last-seen positions — which is why the bound was in the problem.
+
+### Largest Rectangle in Histogram — both directions at once
+
+For each bar, the largest rectangle *using that bar as the height* extends
+left until a shorter bar and right until a shorter bar. So the answer for bar
+`i` is `heights[i] * (right[i] - left[i] - 1)`, where `left` and `right` are
+the previous-smaller and next-smaller indices. That is two runs of the
+template, and the maximum over all bars.
+
+The one-pass version is the same thing folded together: when bar `i` pops bar
+`j` off the stack, `i` *is* `j`'s next smaller, and the new stack top *is*
+`j`'s previous smaller. Both boundaries arrive at the moment of the pop.
+
+**The detail that decides it:** the width is `i - stack[-1] - 1` *after*
+popping, not `i - j`. If the stack is empty after popping, the bar extends all
+the way to the left edge and the width is `i`. Getting this wrong gives an
+answer that is correct on `[2,1,5,6,2,3]` and wrong on `[2,4]`, which is why
+you should dry-run an increasing array before you claim it works.
+
+Append a sentinel `0` to drain the stack at the end rather than writing a
+second loop — it is less code and fewer places to be wrong.
+
+**Follow-up:** Maximal Rectangle. Treat each row of the binary matrix as a
+histogram of heights accumulated from above, and run this per row. O(rows ×
+cols), and it is the entire solution — which is the point of being fluent in
+the histogram version.
+
+### Sliding Window Maximum — why a heap is the wrong answer
+
+The obvious solution is a max-heap of the window. It works and it is
+O(n log n). If the constraint says n ≤ 10⁵ that passes, and if it says n ≤ 10⁶
+it may not — but the reason to reach for the deque is that the heap cannot
+delete the element leaving the window without a lazy-deletion trick, and
+explaining lazy deletion costs more time than writing the deque.
+
+**The insight.** If `nums[j] <= nums[i]` and `j < i`, then `j` is useless
+forever: every future window that contains `j` also contains `i`. So the deque
+only ever holds a decreasing sequence of *candidates*, and the front is the
+answer.
+
+**Dry-run** `[1,3,-1,-3,5,3,6,7]`, k = 3. Push 1. 3 arrives and evicts 1 —
+1 can never win again. -1 and -3 stack behind 3. First answer: 3. When 5
+arrives it evicts -3 and -1 and 3, leaving just 5. That eviction cascade is
+the amortised argument: each index enters and leaves the deque once.
+
+**Follow-up:** sliding window *median*. The deque does not help — medians need
+order statistics, so this becomes two heaps or an ordered multiset. Knowing
+which follow-ups the pattern does *not* cover is worth as much as knowing
+which it does.

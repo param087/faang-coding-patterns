@@ -1,0 +1,57 @@
+---
+/**
+ * A block of Python, sliced from a module the test suite runs.
+ *
+ * The footer names the source file so you can see it is real code rather than
+ * prose that happens to look like code.
+ */
+import { Code } from 'astro:components'
+import { snippet } from '../lib/snippets.ts'
+
+interface Props {
+  file: string
+  symbol?: string
+  stripDocstring?: boolean
+  /** Shown above the block, e.g. "The template". */
+  title?: string
+}
+
+const { file, symbol, stripDocstring, title } = Astro.props
+const source = snippet({ file, symbol, stripDocstring })
+---
+
+<figure class="border-line-soft bg-bg-sunken rounded-card my-6 overflow-hidden border">
+  {
+    title && (
+      <figcaption class="border-line-soft text-ink-muted border-b px-4 py-2 text-[12px] font-medium">
+        {title}
+      </figcaption>
+    )
+  }
+  <div class="snippet overflow-x-auto p-4 text-[13px] leading-relaxed">
+    <Code code={source} lang="python" />
+  </div>
+  <div class="border-line-soft text-ink-faint tabular border-t px-4 py-1.5 text-[11px]">
+    {file}{symbol ? ` · ${symbol}()` : ''} · verified by pytest
+  </div>
+</figure>
+
+<style is:global>
+  .snippet pre {
+    background: transparent !important;
+    margin: 0;
+  }
+  .snippet code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  /* Shiki emits both themes; pick the one matching our data-theme. */
+  :root[data-theme='light'] .snippet .shiki,
+  :root[data-theme='light'] .snippet .shiki span {
+    color: var(--shiki-light) !important;
+  }
+  :root[data-theme='dark'] .snippet .shiki,
+  :root[data-theme='dark'] .snippet .shiki span {
+    color: var(--shiki-dark) !important;
+  }
+</style>

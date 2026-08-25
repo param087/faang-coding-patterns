@@ -1,0 +1,31 @@
+---
+/**
+ * A complexity class, in the hue that class owns across the whole site.
+ * This is the legend for every other coloured element.
+ */
+import { CLASS_BY_ID, type ComplexityId } from '../lib/complexity.ts'
+
+interface Props {
+  id: ComplexityId
+  /** Override the notation, e.g. `O(V + E)` on a graph page. */
+  label?: string
+  size?: 'sm' | 'md'
+}
+
+const { id, label, size = 'sm' } = Astro.props
+const cls = CLASS_BY_ID.get(id)
+const text = label ?? cls?.label ?? id
+---
+
+<span
+  class:list={[
+    'tabular inline-flex items-center rounded-chip border font-medium whitespace-nowrap',
+    size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2.5 py-1 text-sm',
+  ]}
+  style={`color: var(--color-${id});
+          border-color: color-mix(in oklab, var(--color-${id}) 30%, transparent);
+          background: color-mix(in oklab, var(--color-${id}) 10%, transparent);`}
+  title={cls?.gloss}
+>
+  {text}
+</span>

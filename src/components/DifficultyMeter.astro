@@ -1,0 +1,49 @@
+---
+/**
+ * Difficulty as a three-segment meter, deliberately without a hue.
+ *
+ * Hue on this site means complexity class, and nothing else. A red "Hard"
+ * pill would read as "exponential" next to a colour-coded pattern card, so
+ * difficulty spends weight instead of colour — which also makes it
+ * colourblind-safe by construction rather than by adjustment.
+ */
+interface Props {
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+  /** Hide the word and show the meter alone, for dense tables. */
+  compact?: boolean
+}
+
+const { difficulty, compact = false } = Astro.props
+const filled = { Easy: 1, Medium: 2, Hard: 3 }[difficulty]
+---
+
+<span class="inline-flex items-center gap-1.5 align-middle" title={difficulty}>
+  <span class="flex items-end gap-[2px]" aria-hidden="true">
+    {
+      [1, 2, 3].map((step) => (
+        <span
+          class:list={[
+            'w-[3px] rounded-[1px]',
+            step <= filled ? 'bg-ink' : 'bg-line',
+            step === 1 && 'h-[5px]',
+            step === 2 && 'h-[8px]',
+            step === 3 && 'h-[11px]',
+          ]}
+        />
+      ))
+    }
+  </span>
+  {
+    !compact && (
+      <span
+        class:list={[
+          'text-[11px] font-medium tracking-wide',
+          filled === 3 ? 'text-ink' : 'text-ink-muted',
+        ]}
+      >
+        {difficulty}
+      </span>
+    )
+  }
+  <span class="sr-only">{difficulty}</span>
+</span>
