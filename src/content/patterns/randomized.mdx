@@ -1,0 +1,176 @@
+---
+id: randomized
+title: Randomized Algorithms & Sampling
+recognition:
+  - 'The words <strong>random</strong>, <strong>uniformly</strong>, <strong>shuffle</strong>, <strong>sample</strong>, <strong>pick</strong>.'
+  - 'A stream of <strong>unknown length</strong>, and you may not store it.'
+  - 'Weighted selection — pick index i with probability proportional to w[i].'
+  - 'O(1) insert, delete <em>and</em> random access on the same structure.'
+  - 'The interviewer asks you to <strong>prove</strong> the distribution is uniform.'
+complexity: 'O(1) or O(log n) per pick'
+template: code/randomized.py
+anchors:
+  - random-pick-with-weight
+  - linked-list-random-node
+  - insert-delete-getrandom-o1
+related:
+  - design
+  - prefix-sums
+  - binary-search
+  - divide-and-conquer
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A small category, disproportionately common at Google and Meta, and unusual in
+one respect: **the interviewer usually wants a proof of uniformity**, not just
+working code. "It looks random" is not an answer. Have the induction ready.
+
+## Weighted selection
+
+<Snippet file="code/randomized.py" symbol="WeightedPicker" title="Prefix sums plus binary search" />
+
+Prefix sums turn weights into contiguous segments on a number line: weight 1
+owns `[0, 1)`, weight 3 owns `[1, 4)`. A uniform draw into that line lands in
+a segment with probability exactly proportional to its length, and
+[binary search](../binary-search/) finds which one.
+
+O(n) to build, O(log n) per pick.
+
+**`bisect_left` against the inclusive prefix totals is the correct bound.**
+Using `bisect_right` shifts every pick by one and quietly gives the weight of
+index i to index i+1 — a bug that produces plausible-looking output and fails
+a distribution test.
+
+## Reservoir sampling
+
+<Snippet file="code/randomized.py" symbol="reservoir_sample" title="Sampling a stream of unknown length" />
+
+The one to actually know. You must sample k items uniformly from a stream
+whose length you do not know and cannot store.
+
+Keep the first k. For each later item i (0-based), keep it with probability
+`k/(i+1)`, replacing a uniformly chosen survivor.
+
+**The proof, which is what they are asking for.** Assume inductively that
+after processing i items, every one of them is in the reservoir with
+probability `k/i`. Now item i arrives:
+
+- It enters with probability `k/(i+1)` — correct by construction.
+- An incumbent survives if either the new item is rejected, or it is accepted
+  but evicts one of the *other* k−1 slots. That is
+  `1 - (k/(i+1)) · (1/k)` = `i/(i+1)`.
+- So an incumbent's overall probability is `(k/i) · (i/(i+1))` = `k/(i+1)`.
+
+Every item has the same probability, and the induction closes. Being able to
+walk through those three lines is the whole question.
+
+<Snippet file="code/randomized.py" symbol="LinkedListSampler" title="k = 1, the case that hides" />
+
+Linked List Random Node is reservoir sampling with k = 1, and the phrasing
+hides it. "You don't know the length and can't store the list" **is** the
+reservoir condition — recognising that is most of the solve.
+
+## Shuffling
+
+<Snippet file="code/randomized.py" symbol="shuffle" title="Fisher-Yates" />
+
+Swap position i with a uniformly random position in **`[i, n)`**.
+
+The common wrong version draws from `[0, n)`. It looks fine and it is
+provably biased: it generates `n^n` equally likely swap sequences over `n!`
+permutations, and since `n!` does not divide `n^n`, some orderings are
+strictly more likely than others.
+
+That counting argument is exactly the answer to "how do you know your shuffle
+is uniform", and it is why the question is asked.
+
+## O(1) insert, delete and random
+
+The RandomizedSet problem lives on the [Design](../design/) page because the
+interesting part is the structure pairing rather than the randomness. The
+trick is worth repeating here: **to remove an element in O(1), swap it with
+the last one and pop**, keeping the array dense so uniform indexing stays
+valid.
+
+## Pitfalls
+
+- **`random.randint(a, b)` is inclusive at both ends**; `randrange(a, b)`
+  excludes `b`. Mixing them is an off-by-one in a distribution, which no test
+  case will make obvious.
+- **Drawing from `[0, n)` in Fisher-Yates.**
+- **`bisect_right` in weighted picking.**
+- **Reseeding inside the loop**, which destroys independence.
+- **Claiming uniformity without an argument.** If you cannot prove it, say
+  that you would verify empirically — running a million draws and checking the
+  histogram is a legitimate answer and better than a hand-wave.
+- **Rejection sampling that may not terminate.** `rand10` from `rand7` is
+  expected O(1) but unbounded in the worst case; say so.
+
+## Anchor walkthroughs
+
+### Random Pick with Weight
+
+**Clarify.** Are weights positive integers? Can they be huge? How many picks
+relative to the number of weights? (Many picks means the O(n) build amortises
+away, which justifies the preprocessing.)
+
+**The insight.** Prefix sums map weights onto a line; a uniform draw plus
+binary search selects proportionally.
+
+**Dry-run** `w = [1, 3]`. Prefix `[1, 4]`. A draw in `[0, 1)` picks index 0
+(probability 1/4); a draw in `[1, 4)` picks index 1 (probability 3/4).
+Checking the boundary at exactly 1 is what confirms the bisect variant.
+
+**Complexity.** O(n) preprocessing, O(log n) per pick.
+
+**Follow-up:** what if the weights change? Then the prefix array is O(n) to
+rebuild, and you want a [Fenwick tree](../segment-tree/) over the weights,
+with the pick becoming a descent through it in O(log n).
+
+### Linked List Random Node
+
+**Clarify.** Do I know the length? (No — that is the constraint.) Can I
+traverse twice? (If yes, count then index, and the problem is trivial. The
+interesting version says no.) Is the list mutable between calls?
+
+**The easy answer first.** Two passes: count the nodes, pick an index, walk to
+it. O(n) time, O(1) space. Correct — and it is worth giving, because it makes
+the constraint that rules it out explicit.
+
+**The reservoir answer.** One pass, replacing the current choice at node i
+with probability `1/(i+1)`.
+
+**The proof, out loud.** Node i is chosen at step i with probability `1/(i+1)`
+and then survives every later step j with probability `j/(j+1)`. The product
+telescopes: `1/(i+1) · (i+1)/(i+2) · … · (n-1)/n` = `1/n`. That telescoping is
+elegant and short enough to say — it is the best possible answer to "why is
+this uniform".
+
+**Complexity.** O(n) per call, O(1) space.
+
+### Insert Delete GetRandom O(1)
+
+**Clarify.** Are duplicates allowed? (The follow-up variant allows them and
+changes the structure substantially.) Must `getRandom` be uniform over
+*values* or over *occurrences*? Does `insert` return whether it was new?
+
+**The tension**, stated first: a hash set gives O(1) membership but no uniform
+pick; a list gives O(1) pick but O(n) removal. Naming why neither suffices is
+what motivates the answer.
+
+**The insight.** Keep both — a list of values and a map from value to its
+index — and remove by **swapping with the last element and popping**. No
+shifting, so O(1), and the array stays dense so indexing stays uniform.
+
+**The detail that breaks it:** after the swap you must update the map entry
+for the element that *moved*, not just delete the one that left. Forgetting
+that leaves a stale index and the next removal corrupts the array.
+
+**Dry-run** insert 1, insert 2, remove 1. The 2 moves into slot 0 and its map
+entry must follow it. Walk that explicitly — it is the whole bug surface.
+
+**Follow-up:** duplicates allowed. The map becomes value → *set* of indices,
+and removal picks an arbitrary one. Still O(1), and noticeably fiddlier.

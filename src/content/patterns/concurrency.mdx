@@ -1,0 +1,177 @@
+---
+id: concurrency
+title: Concurrency & Multithreading
+recognition:
+  - 'Several threads must run in a fixed <strong>order</strong>, or strictly alternate.'
+  - 'A producer and a consumer sharing a bounded buffer.'
+  - 'Threads must gather into groups before proceeding.'
+  - 'The words <strong>thread-safe</strong>, <strong>race condition</strong>, <strong>deadlock</strong>.'
+  - 'A design question where a follow-up asks "what if this is called concurrently?"'
+complexity: 'O(1) per operation, plus blocking'
+template: code/concurrency.py
+anchors:
+  - print-in-order
+  - design-bounded-blocking-queue
+  - the-dining-philosophers
+related:
+  - design
+  - ood
+  - heaps
+  - graph-traversal
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Asked far more often than candidates prepare for — and the bar is low, which
+makes it excellent value. LeetCode has only nine concurrency problems; doing
+all nine takes an afternoon and covers the category.
+
+One rule answers most of them:
+
+> **A lock protects state. A semaphore counts permits. A condition lets a
+> thread sleep until a predicate holds. A barrier makes threads wait for each
+> other.**
+
+And one thing is never the answer: **busy-waiting.** Spinning on a boolean
+burns a core, gives no ordering guarantee, and tells the interviewer you have
+not used threads in anger.
+
+## Ordering with semaphores
+
+<Snippet file="code/concurrency.py" symbol="Foo" title="Print in Order" />
+
+Two semaphores initialised to **zero** act as one-shot gates: `second` blocks
+until `first` releases it.
+
+Why semaphores rather than locks: a `Lock` is conceptually owned by whoever
+acquired it, and releasing another thread's lock is at best confusing. A
+semaphore is explicitly a *signal between threads*, which is what this is.
+
+<Snippet file="code/concurrency.py" symbol="FooBar" title="Strict alternation" />
+
+Strict alternation needs **two gates facing each other**, each thread
+releasing the other and then waiting to be released. One shared lock is not
+enough — nothing stops a thread from reacquiring it immediately and printing
+twice in a row. That is the failure mode to be able to name.
+
+## The classic: a bounded blocking queue
+
+<Snippet file="code/concurrency.py" symbol="BoundedBlockingQueue" title="One lock, two conditions" />
+
+One lock guards the deque; two conditions let threads sleep until the queue is
+not full or not empty.
+
+**`wait_for` re-checks the predicate on wake, and that is the point.** Writing
+`if not full: wait()` instead of a loop is *the* bug this question exists to
+find. Two reasons it breaks:
+
+- **Spurious wakeups** are permitted by the underlying primitives.
+- **Another thread may win the race** after you are notified but before you
+  reacquire the lock, so the condition you were waiting for is false again.
+
+`wait_for(predicate)` is the loop, written correctly. If you write it by hand,
+write `while not predicate: cond.wait()`.
+
+## Grouping
+
+<Snippet file="code/concurrency.py" symbol="H2O" title="Building H2O" />
+
+Threads must leave in groups of exactly two hydrogen and one oxygen. Semaphores
+alone let a hydrogen thread rush ahead and form HHH; a `Barrier(3)` encodes
+"nobody proceeds until the group is complete", which is precisely the
+requirement.
+
+The semaphores still matter — they cap how many of each type may be *waiting*
+at the barrier at once, so the groups form correctly rather than arbitrarily.
+
+## Python specifics worth knowing
+
+- **The GIL** means threads do not give you CPU parallelism for pure Python.
+  They do give concurrency for I/O, and they are still the right tool for
+  these problems, which are about *coordination*. If an interviewer asks about
+  CPU-bound parallelism, the answer is `multiprocessing`.
+- `threading.Lock` is not reentrant; `RLock` is. Acquiring a `Lock` twice in
+  the same thread deadlocks instantly.
+- `with lock:` is always better than manual acquire/release — it releases on
+  exception.
+- `Condition` needs a lock; passing the same lock to two conditions (as above)
+  is what lets them coordinate.
+
+## Pitfalls
+
+- **`if` instead of `while`** around a wait.
+- **Busy-waiting.**
+- **Deadlock from lock ordering.** If two threads take locks A then B and B
+  then A, they will eventually deadlock. Fix by imposing a global order on
+  lock acquisition — which is exactly the standard Dining Philosophers
+  solution.
+- **Forgetting to release on the exception path.** Use `with`.
+- **Assuming notify wakes everyone.** `notify()` wakes one; `notify_all()`
+  wakes all. Using `notify` when several threads wait on different predicates
+  can wake the wrong one and stall.
+- **Testing once and declaring it correct.** Race conditions are
+  probabilistic. Run it many times, and say that you would.
+
+## Anchor walkthroughs
+
+### Print in Order
+
+**Clarify.** Are the three methods called from three separate threads? In an
+arbitrary order? Is each called exactly once?
+
+**The naive attempt, and why it fails.** A shared boolean plus a spin loop
+"works" and is wrong: it burns CPU and, on a weak memory model, offers no
+guarantee the write is visible. Naming that is worth more than the solution.
+
+**The insight.** Two gates, each initialised to zero, released in sequence.
+
+**Test it by starting the threads in the wrong order** — third, second, first.
+If the output is still correct, the synchronisation is real rather than
+accidental. The test in the module does exactly this.
+
+**Follow-up:** generalise to n methods in order — an array of n−1 semaphores.
+
+### Design Bounded Blocking Queue
+
+**Clarify.** Should `enqueue` block when full, or throw? (Block.) Is
+`dequeue` blocking? Multiple producers and consumers, or one each? (Multiple —
+which is why `wait_for` and not `if`.)
+
+**The structure.** A deque, one lock, two conditions.
+
+**The `while` versus `if` argument**, stated explicitly. This is the single
+thing the question is testing.
+
+**Which condition to notify.** `enqueue` notifies `not_empty`; `dequeue`
+notifies `not_full`. Notifying the wrong one is a stall that only appears
+under load.
+
+**Follow-up:** what if you need a timeout? `wait_for(predicate, timeout=...)`
+returns a boolean rather than blocking forever — a good answer, and a real
+production concern.
+
+### The Dining Philosophers
+
+**Clarify.** Five philosophers, five forks, each needs both neighbours' forks.
+Must the solution be starvation-free, or merely deadlock-free? (Ask — they are
+different guarantees and the second is easier.)
+
+**The deadlock.** If every philosopher picks up their left fork simultaneously,
+all five hold one fork and wait forever for the other. Describe this before
+proposing a fix; it is the reason the problem exists.
+
+**Three standard fixes**, and being able to list them is the answer:
+
+1. **Impose a global order** — every philosopher picks up the lower-numbered
+   fork first. This breaks the circular wait, which is one of the four
+   necessary conditions for deadlock.
+2. **Limit concurrency** — a semaphore permitting at most four philosophers to
+   try at once, so at least one can always eat.
+3. **Asymmetry** — odd-numbered philosophers pick up left first, even ones
+   right first.
+
+**Name the four Coffman conditions** if you can — mutual exclusion, hold and
+wait, no preemption, circular wait — and note that every fix above removes one
+of them. That framing is what turns a puzzle answer into a systems answer.

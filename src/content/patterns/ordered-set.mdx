@@ -1,0 +1,185 @@
+---
+id: ordered-set
+title: Ordered Set & TreeMap Patterns
+recognition:
+  - '"The largest key at most X" against a set that is <strong>still changing</strong>.'
+  - 'The words <strong>floor</strong>, <strong>ceiling</strong>, <strong>predecessor</strong>, <strong>successor</strong>, <strong>nearest</strong>.'
+  - 'Calendar and booking problems — check the neighbours, not everything.'
+  - 'A sliding window that needs a median or an order statistic.'
+  - 'A Java solution would say <code>TreeMap</code>.'
+complexity: 'O(log n) per operation — with a caveat in Python'
+template: code/ordered_set.py
+anchors:
+  - my-calendar-i
+  - contains-duplicate-iii
+  - sliding-window-median
+related:
+  - heaps
+  - binary-search
+  - intervals
+  - segment-tree
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A whole class of problems needs **neighbour queries against a mutating set**:
+insert values as they arrive, and repeatedly ask "what is the largest key at
+most X?"
+
+A [heap](../heaps/) cannot do this — it gives you the extreme, not the
+neighbours. A sorted array cannot do it either, because inserting is O(n). In
+Java you would write `TreeMap.floorKey`; in C++, `std::map::lower_bound`.
+
+**Python has no ordered set in the standard library.** That is not trivia —
+it is a decision you have to make out loud in the interview.
+
+## The three options, and how to choose
+
+| Option | Insert | Search | Caveat |
+| --- | --- | --- | --- |
+| `sortedcontainers.SortedList` | O(log n) | O(log n) | third-party |
+| `bisect` on a list | **O(n)** | O(log n) | the shift |
+| Bucketing | O(1) | O(1) | needs a fixed width |
+
+`sortedcontainers` is available on LeetCode and often not in a CoderPad
+session. The honest thing to say is: *"I'd use `SortedList` from
+`sortedcontainers` — it's not in the standard library, so if that's
+unavailable I'd use `bisect` on a list and accept O(n) insertion, which is
+fine up to about 10⁴."*
+
+That sentence is the whole point of this page. Reaching for `SortedList`
+without acknowledging the dependency, or writing `bisect.insort` while
+claiming O(log n), are both things interviewers notice.
+
+<Snippet file="code/ordered_set.py" symbol="OrderedList" title="What you would actually type" />
+
+`bisect_right(...) - 1` for the floor, `bisect_left(...)` for the ceiling.
+Write both down before using them; getting the pair the wrong way round is a
+silent off-by-one.
+
+## Checking only the neighbours
+
+<Snippet file="code/ordered_set.py" symbol="MyCalendar" title="My Calendar I" />
+
+The canonical problem, and the insight is small but complete: a new booking
+can only conflict with its **immediate neighbours** in sorted order. Two
+lookups settle it — no scan over every existing booking.
+
+- The booking starting just before us must **end** by the time we start.
+- The booking starting just after us must **start** at or after we end.
+
+That is it. O(log n) to find the position, O(n) to insert into a list — or
+O(log n) throughout with a real ordered structure.
+
+## When bucketing beats it
+
+<Snippet file="code/ordered_set.py" symbol="contains_nearby_almost_duplicate" title="Bucketing, in O(n)" />
+
+Sometimes the ordered set is the *obvious* answer and not the best one.
+
+Contains Duplicate III asks for two values within `index_diff` positions and
+`value_diff` in value. The ordered-set solution keeps a sliding window sorted
+and asks for a ceiling: O(n log k).
+
+The bucketing solution is O(n). Put each value in a bucket of width
+`value_diff + 1`. Then **two values in the same bucket are automatically
+within range** — that is what the width buys you — and only the two adjacent
+buckets need an explicit check. Nothing else can be close enough.
+
+Floor division rather than truncation is what keeps negative values in the
+correct bucket; `-1 // 3` is `-1` in Python, which is what you want, and
+`int(-1 / 3)` is `0`, which is not.
+
+## Pitfalls
+
+- **Claiming O(log n) for `insort`.** The search is O(log n); the insert is
+  O(n) because the list shifts.
+- **`bisect_left` versus `bisect_right`.** Floor is `bisect_right - 1`,
+  ceiling is `bisect_left`. Write them down.
+- **Assuming `sortedcontainers` is available.** Ask, or state the assumption.
+- **Using a heap for neighbour queries.** It cannot.
+- **Duplicate keys.** `SortedList` is a multiset; `SortedSet` is not. Decide
+  which the problem needs.
+- **Bucket width off by one.** It is `value_diff + 1`, not `value_diff`, or
+  two values exactly `value_diff + 1` apart share a bucket.
+
+## Anchor walkthroughs
+
+### My Calendar I
+
+**Clarify.** Are intervals half-open — does `[10, 20)` conflict with
+`[20, 30)`? (No, touching is fine, and this is the question that decides `<`
+versus `<=`.) How many bookings? (10³, so an O(n) insert is perfectly
+acceptable.) Must a rejected booking leave no trace?
+
+**The naive answer.** Check the new interval against every existing one:
+O(n) per booking, O(n²) overall. At n = 1000 that is 10⁶ — **it passes.** Say
+so, then improve it anyway, because the improvement is the point.
+
+**The insight.** Keep bookings sorted by start. Only the immediate neighbours
+can conflict.
+
+**The two conditions**, stated precisely before coding, because "overlap" has
+four cases if you enumerate them naively and two if you think in terms of
+neighbours.
+
+**Dry-run** book(10,20) ✓, book(15,25) ✗ (starts inside the first),
+book(20,30) ✓ (touching is not overlapping — the case that tests your `<`).
+
+**Follow-up:** My Calendar II (allow double booking, reject triple), which is
+a sweep over an interval count; and My Calendar III (report the maximum
+overlap at any time), which is a
+[segment tree with lazy propagation](../segment-tree/) or a boundary-count
+map. The three make a nice ladder and interviewers walk up it.
+
+### Contains Duplicate III
+
+**Clarify.** Is `value_diff` inclusive? (Yes — "at most".) Can it be zero?
+(Then it is exact duplicates within a window.) Negative values? (Yes — hence
+floor division.) Can `index_diff` be zero? (Then the answer is always false.)
+
+**The window insight.** Only the last `index_diff` values matter, so this is a
+sliding window over a *sorted* structure.
+
+**The ordered-set solution.** Keep the window in a `SortedList`; for each new
+value, ceiling-search for `value - value_diff` and check whether the result is
+within range. O(n log k).
+
+**The bucketing solution.** Better, and the one to aim for. Explain the width
+choice: with buckets of width `value_diff + 1`, any two values in the same
+bucket differ by at most `value_diff`, so a collision is an immediate answer.
+
+**Complexity.** O(n) time, O(min(n, k)) space.
+
+**Dry-run** `nums=[1,5,9,1,5,9], k=2, t=3` → false. Then `[1,2], k=1, t=1` →
+true, which lands both values in adjacent buckets and tests the neighbour
+check rather than the same-bucket one.
+
+### Sliding Window Median
+
+The Hard that shows exactly where a heap stops.
+
+**Clarify.** Even-length windows — average the two middle values? Are values
+large enough to overflow? (In Java yes; use `long` or avoid `(a+b)/2`.)
+
+**Why the two-heap [median trick](../heaps/) is not enough.** It handles a
+growing stream, but a window also **removes** an element — and a binary heap
+cannot delete an arbitrary element in O(log n).
+
+**Two ways out**, and knowing both is the answer:
+
+1. **Lazy deletion.** Keep the two heaps, plus a map of elements pending
+   removal. Discard stale roots on access, and track the *effective* sizes
+   rather than the raw heap lengths. Fiddly, and the size bookkeeping is where
+   it goes wrong.
+2. **An ordered structure.** `SortedList` supports O(log n) insert *and*
+   O(log n) remove, and the median is index `k // 2`. Far shorter, and the
+   reason this problem is on this page rather than the heaps page.
+
+**Complexity.** O(n log k) either way.
+
+**The judgement call to voice:** "the two-heap approach is the standard median
+trick, but it can't delete, so I'd either add lazy deletion or use an ordered
+multiset — I'd pick the multiset for clarity unless it's unavailable."

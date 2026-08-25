@@ -1,0 +1,184 @@
+---
+id: bit-manipulation
+title: Bit Manipulation
+recognition:
+  - 'Values appear <strong>twice except one</strong> — that is XOR, immediately.'
+  - 'A follow-up demands <strong>O(1) extra space</strong> where a hash map was natural.'
+  - 'Subsets of a set with n ≤ 20 — an integer <em>is</em> the subset.'
+  - 'The words <strong>without using</strong> an arithmetic operator.'
+  - 'Counting set bits, powers of two, or masks over a small fixed alphabet.'
+complexity: 'O(1) per operation, O(n) overall'
+template: code/bit_manipulation.py
+anchors:
+  - counting-bits
+  - single-number-ii
+  - sum-of-two-integers
+related:
+  - math-geometry
+  - backtracking
+  - dp-advanced
+  - tries
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Two facts do most of the work.
+
+**XOR cancels.** `a ^ a == 0` and `a ^ 0 == a`, so anything appearing an even
+number of times vanishes. That single property answers a whole family of
+questions.
+
+**An integer is a set.** Bit i means "element i is present", which is what
+turns subset enumeration into a counting loop and makes `n ≤ 20` the
+recognisable signature of [bitmask DP](../dp-advanced/).
+
+<Snippet file="code/bit_manipulation.py" symbol="single_number" title="XOR cancellation" />
+
+The interview shape is always the same: offer the hash-map solution (O(n)
+time, O(n) space), get asked for O(1) space, then produce this. The follow-up
+is the question; the hash map is just the price of admission.
+
+## When XOR is not enough
+
+<Snippet file="code/bit_manipulation.py" symbol="single_number_ii" title="Every other value appears three times" />
+
+XOR breaks here — three copies of a value leave one behind rather than
+cancelling. The fix generalises: **count each bit position modulo k**. Bits
+belonging to the k-copy groups sum to a multiple of k and vanish; what remains
+is the answer.
+
+The sign fix-up at the end is Python-specific and genuinely necessary: Python
+integers are unbounded, so a bit pattern that should be interpreted as a
+negative 32-bit number is not automatically. Without it, `[-2,-2,1,-2]`
+returns a large positive number.
+
+## Bits as a DP
+
+<Snippet file="code/bit_manipulation.py" symbol="count_bits" title="Counting Bits" />
+
+`i >> 1` is `i` with its last bit removed — and that value's popcount is
+already computed. So `bits[i] = bits[i >> 1] + (i & 1)`.
+
+Calling a popcount routine n times is O(n log n). This is O(n), and spotting
+that the subproblem is already solved is what makes it a DP question rather
+than a bit-twiddling one.
+
+## Arithmetic without arithmetic
+
+<Snippet file="code/bit_manipulation.py" symbol="get_sum" title="Addition with XOR and AND" />
+
+`a ^ b` is the sum ignoring carries; `(a & b) << 1` is the carries. Repeat
+until nothing carries.
+
+**The masking is the hard part in Python**, and it is worth being explicit
+about: because integers are unbounded, negative numbers must be forced into 32
+bits by hand, and the result converted back at the end. In Java or C++ this
+problem is eight lines with no masking at all — saying that shows you
+understand *why* the Python version looks convoluted.
+
+## Bits as subsets
+
+<Snippet file="code/bit_manipulation.py" symbol="subsets_via_bits" title="Every subset, by counting" />
+
+Each integer from `0` to `2ⁿ − 1` *is* a subset. This is the concrete reason a
+constraint of `n ≤ 20` signals bitmask: 2²⁰ is about a million, which is
+nothing, and 2³⁰ is a billion, which is not.
+
+## The tricks worth memorising
+
+| Trick | Does |
+| --- | --- |
+| `n & (n - 1)` | clears the lowest set bit |
+| `n & -n` | isolates the lowest set bit |
+| `n & (n - 1) == 0` | n is a power of two (n > 0) |
+| `n \| (1 << i)` | set bit i |
+| `n & ~(1 << i)` | clear bit i |
+| `n ^ (1 << i)` | flip bit i |
+| `(n >> i) & 1` | read bit i |
+| `bin(n).count('1')` | popcount in Python |
+
+`n & (n - 1)` is the one that earns its keep — it powers Brian Kernighan's
+popcount, the power-of-two test, and the lowest-set-bit walk in a
+[Fenwick tree](../segment-tree/).
+
+## Pitfalls
+
+- **Python has no fixed width.** Negative numbers, overflow checks and
+  bit-counting all need explicit masking with `0xFFFFFFFF`. This is the single
+  biggest difference from Java/C++ and the source of most confusion.
+- **`>>` on negatives** is an arithmetic shift, so it sign-extends forever.
+  Mask first.
+- **Operator precedence.** `&` binds *looser* than `==` in Python, so
+  `a & 1 == 0` parses as `a & (1 == 0)`. Parenthesise.
+- **XOR when values repeat three times.** Reach for the mod-k count.
+- **Reaching for bits when clarity matters.** If a hash map is allowed and n
+  is small, use it. Bit tricks are for when the constraint demands them, not
+  for showing off.
+
+## Anchor walkthroughs
+
+### Counting Bits
+
+**Clarify.** Return an array for `0..n` inclusive? (Yes.) Is a built-in
+popcount allowed? (Ask — if `bin(i).count('1')` is permitted the problem is a
+one-liner, and the interviewer almost certainly wants the DP.) What is the
+expected complexity? (O(n), which rules out per-number counting.)
+
+**The naive answer.** Popcount each number: O(n log n). Say it, then observe
+the constraint asks for better.
+
+**The insight.** `i` and `i >> 1` differ only in the last bit, and `i >> 1` is
+smaller, so its answer is already in the table.
+
+**Dry-run** 0 through 5: `[0, 1, 1, 2, 1, 2]`. Check 5 = `101`: `5 >> 1` is
+`2` = `10` with popcount 1, plus the low bit 1 → 2. ✓
+
+**An alternative recurrence**, worth mentioning: `bits[i] = bits[i & (i-1)] +
+1`, which uses the clear-lowest-bit trick. Same O(n), and offering two
+recurrences shows the tricks are actually in your hands.
+
+### Single Number II
+
+**Clarify.** Does exactly one value appear once and all others exactly three
+times? Can values be negative? (Yes — and that is the whole difficulty in
+Python.) Is O(1) space required? (Yes, or the hash map wins.)
+
+**Why plain XOR fails.** State it: three copies XOR to one copy, not zero. So
+the loner does not survive alone.
+
+**The insight.** Count each of the 32 bit positions modulo 3. Every bit
+belonging to a tripled value contributes a multiple of 3 and drops out.
+
+**The sign handling.** Explain that Python has no 32-bit int, so a result with
+bit 31 set must be reinterpreted as negative by subtracting `2^32`. Then run
+`[-2,-2,1,-2]` to demonstrate.
+
+**Complexity.** O(32n) = O(n) time, O(1) space.
+
+**The elegant alternative**, if they push: two accumulators `ones` and `twos`
+tracking bits seen once and twice, with a mask clearing bits that reach three.
+It is four lines and nearly impossible to derive under pressure — know it
+exists, and only write it if you genuinely remember it.
+
+### Sum of Two Integers
+
+**Clarify.** May I use `+` or `-` at all? (No — that is the problem.) Can
+inputs be negative? (Yes, and this is where Python gets awkward.) What is the
+integer width? (32 bits.)
+
+**The insight.** XOR is addition without carrying; AND-then-shift is the
+carry. Feed the carry back in and repeat until it is zero.
+
+**Dry-run** 1 + 2. `1 ^ 2 = 3`, `(1 & 2) << 1 = 0` → done, answer 3. Then do
+3 + 5: `3 ^ 5 = 6`, `(3 & 5) << 1 = 2`; next round `6 ^ 2 = 4`,
+`(6 & 2) << 1 = 4`; next `4 ^ 4 = 0`, carry 8; then `0 ^ 8 = 8`, carry 0.
+Answer 8. Working a case with multiple carry rounds is what proves you
+understand the loop rather than the identity.
+
+**The Python caveat**, stated clearly. This is the part interviewers are
+curious about, because the language difference is real and most candidates are
+surprised by it.
+
+**Complexity.** O(1) — at most 32 iterations.

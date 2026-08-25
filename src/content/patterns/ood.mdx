@@ -1,0 +1,176 @@
+---
+id: ood
+title: OOD in the Coding Round
+recognition:
+  - '"Design a parking lot / elevator / vending machine" — but you must <em>code</em> it.'
+  - 'The problem describes a real-world system with entities and rules.'
+  - 'Multiple related classes, and the API is given.'
+  - 'The interviewer cares about the model, not the algorithm.'
+  - 'A simulation with state that persists across many operations.'
+complexity: 'Whatever the API demands — usually O(1) per operation'
+template: code/ood.py
+anchors:
+  - design-parking-system
+  - design-snake-game
+  - design-underground-system
+related:
+  - design
+  - matrix
+  - arrays-hashing
+  - concurrency
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+This is **not** the 45-minute low-level-design interview. This is the 20-minute
+version inside a coding round, where you must produce *working code* rather
+than a class diagram — and where running out of time is the main failure mode.
+
+Two rules keep it on track.
+
+**1. Model the nouns, then the verbs.** Say the entities and their
+relationships out loud before typing. "A lot has spaces; a space has a size
+and may hold a vehicle; a vehicle has a plate and a size." Thirty seconds,
+and it prevents the mid-implementation rewrite.
+
+**2. Build only what the stated API needs.** A parking lot does not need
+billing, or floors, or a ticketing subsystem, unless they asked. Over-
+modelling is how candidates run out the clock with nothing working — and
+"working code that does exactly the stated API" beats "half of an elegant
+class hierarchy" every time.
+
+<Snippet file="code/ood.py" symbol="ParkingLot" title="Only what the API needs" />
+
+The design decision worth narrating: one counter per size is enough for
+"park" and "leave", but releasing a space requires knowing which size the
+vehicle occupied — hence `occupied: dict[plate, Size]`. Without it, `leave`
+cannot restore the right counter.
+
+Deliberately **not** modelled: floors, pricing, tickets, timestamps. Say that
+you are leaving them out and that you would add them if the API grew. That
+sentence is the difference between "under-engineered" and "appropriately
+scoped".
+
+## Make the operations O(1)
+
+<Snippet file="code/ood.py" symbol="TicTacToe" title="Design Tic-Tac-Toe" />
+
+The naive `move` scans the board: O(n) per call. Keeping running tallies per
+row, column and the two diagonals makes it O(1) — a win is a tally reaching
+±n.
+
+**Encoding player 1 as +1 and player 2 as −1** halves the bookkeeping: one set
+of counters instead of two, and `abs(tally) == n` tests both players at once.
+That is the trick that makes the code short, and it is worth pointing out.
+
+## Choose the representation, not just the classes
+
+<Snippet file="code/ood.py" symbol="UndergroundSystem" title="Design Underground System" />
+
+The modelling decision here is not about classes at all — it is about what to
+store. Keeping a **running sum and count** per route gives the same average as
+keeping every journey, in constant space.
+
+Interviewers ask what happens at scale. "A list of every journey grows without
+bound; a sum and a count do not" is the answer, and it is the kind of thing
+that separates a coding answer from an engineering one.
+
+## What a good answer looks like
+
+- **Enums for closed sets** (sizes, states, directions) rather than magic
+  strings.
+- **Dataclasses for records.** They give you `__eq__` and `__repr__` free,
+  which makes debugging in the shared editor faster.
+- **Idempotency considered.** Parking the same car twice, leaving twice,
+  booking a taken slot. Handle them, and say you are.
+- **One responsibility per class.** If a class is doing two things, the
+  interviewer will ask about it.
+- **No inheritance you cannot justify.** A `Vehicle` base class with `Car`,
+  `Motorcycle` and `Truck` subclasses that differ only by a size constant is
+  worse than a size field. Composition first.
+
+## Pitfalls
+
+- **Building a class hierarchy nobody asked for.** The single biggest time
+  sink.
+- **Designing for extensibility that was not requested.** Mention it, do not
+  build it.
+- **Forgetting the O(1) requirement** and scanning where a counter would do.
+- **No edge cases.** Full lot, empty lot, duplicate operations, invalid ids.
+- **Leaving the code untested.** Walk one operation sequence out loud at the
+  end; it takes a minute and catches most mistakes.
+- **Treating it as pure discussion.** This is a coding round. Code must run.
+
+Where a full design conversation is wanted — trade-offs, patterns,
+extensibility, class diagrams — that is the LLD interview, and it is covered
+in the companion
+[HLD + LLD handbook](https://hld-lld-interview-handbook.vercel.app/).
+
+## Anchor walkthroughs
+
+### Design Parking System
+
+**Clarify.** Are there fixed counts per size, or a general pool? May a small
+car occupy a large space? (In the LeetCode version, no — but *ask*, because
+the general version is the more interesting design and interviewers often
+want it.) Do I need to track which car is where, or only counts?
+
+**The minimal answer.** Three counters and a decrement. That is genuinely all
+the stated API needs, and delivering it in two minutes buys you the rest of
+the round for the follow-ups — which is the whole strategy.
+
+**Then extend, out loud.** "If a small car could take a larger space, I'd want
+a fits-in ordering and a tightest-fit policy — and then `leave` needs to know
+which size was actually used, so I'd add a plate→size map." Growing the design
+in response to a stated requirement is exactly what they are watching for.
+
+**Follow-ups they reach for:** multiple floors, finding the *nearest* free
+space, pricing by duration, and concurrency when many gates admit cars at
+once.
+
+### Design Snake Game
+
+The one that rewards choosing the right representation.
+
+**Clarify.** Does the snake die on hitting itself? Does the tail move out of
+the way on the same tick — that is, is moving into the current tail square
+legal? (Usually yes, and it is the subtle case.) Is the food queue fixed in
+advance?
+
+**The naive representation.** A list of body cells, checking collisions by
+scanning it: O(length) per move. Say it, then improve it.
+
+**The right one.** A `deque` for the body (append the new head, pop the tail)
+**plus a set** of occupied cells for O(1) collision checks. The deque gives
+order; the set gives membership. That pairing is the same idea as the
+[Design](../design/) page — one structure for order, one for lookup.
+
+**The subtle case**, and the reason to ask about it up front: when the snake
+moves forward without eating, the tail vacates its cell in the same tick — so
+you must remove the tail from the set **before** testing the new head against
+it. Getting this backwards kills the snake on a legal move, and it is the bug
+this problem exists to find.
+
+**Complexity.** O(1) per move.
+
+### Design Underground System
+
+**Clarify.** Can a customer check in twice without checking out? Are station
+names unique? Is the average over all time or a window? What precision is
+expected?
+
+**The model.** Two maps: in-transit customers, and per-route statistics.
+
+**The representation decision** — running sum and count, not a list of
+journeys — stated with the scale argument.
+
+**Dry-run** two journeys on the same route with times 12 and 10 → average 11.
+Then query a route in the opposite direction and confirm it is a *different*
+key, because `(A, B)` and `(B, A)` are distinct routes. That asymmetry is easy
+to get wrong and easy to demonstrate.
+
+**Follow-up:** average over the last hour only, which turns the running sum
+into a sliding window and pushes you toward a deque of timestamped entries —
+a good, natural extension to talk through even if you do not implement it.

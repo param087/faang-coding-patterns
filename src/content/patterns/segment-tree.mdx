@@ -1,0 +1,192 @@
+---
+id: segment-tree
+title: Segment Trees & Fenwick
+recognition:
+  - '<strong>Range query plus point update</strong>, both happening often.'
+  - 'The words <strong>mutable</strong>, <strong>after each update</strong>, <strong>online queries</strong>.'
+  - 'Counting inversions, smaller-after-self, or reverse pairs.'
+  - 'Range <em>update</em> as well as range query — that needs lazy propagation.'
+  - 'A prefix-sum solution that is O(n) per update and therefore too slow.'
+complexity: 'O(log n) per query and per update'
+template: code/segment_tree.py
+anchors:
+  - range-sum-query-mutable
+  - count-of-smaller-numbers-after-self
+  - falling-squares
+related:
+  - prefix-sums
+  - divide-and-conquer
+  - ordered-set
+  - binary-search
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+The tell is the combination, not either half:
+
+| | Query | Update |
+| --- | --- | --- |
+| Plain array | O(n) | O(1) |
+| [Prefix sums](../prefix-sums/) | O(1) | **O(n)** |
+| Fenwick / segment tree | O(log n) | O(log n) |
+
+If updates never happen, use prefix sums — they are simpler and faster. The
+log-time structure earns its complexity only when **both** operations are
+frequent.
+
+**Reach for Fenwick unless you need what only a segment tree gives you.** It
+is a third of the code and handles prefix sums, which covers most interview
+questions. A segment tree is required for non-invertible operations (min, max,
+gcd) and for lazy propagation.
+
+## Fenwick
+
+<Snippet file="code/segment_tree.py" symbol="FenwickTree" title="Binary indexed tree" />
+
+The whole implementation is index arithmetic. `i & -i` isolates the lowest set
+bit, which is the size of the range that node covers — adding it walks up for
+updates, subtracting it walks down for queries.
+
+**One-indexed internally, always.** Index 0 has no lowest set bit, so
+`i -= i & -i` never terminates. Every Fenwick implementation adds 1 on the way
+in; if yours does not, that is the bug.
+
+Range sums come from subtracting two prefix sums, which works because addition
+is invertible. Min and max are **not** invertible — there is no "subtract a
+minimum" — which is precisely why they need a segment tree.
+
+## Segment tree
+
+<Snippet file="code/segment_tree.py" symbol="SegmentTree" title="Iterative, in 2n space" />
+
+Leaves live in `[n, 2n)`, and every internal node `i` combines `2i` and
+`2i+1`. This flat iterative layout avoids recursion and the customary 4n
+allocation.
+
+The query walks up from both ends. An **odd** boundary index means that node
+is not fully contained in its parent's range, so it must be taken now and
+stepped past — that is what the `lo & 1` and `hi & 1` tests are doing.
+
+Because it is parameterised by `combine` and `identity`, the same class does
+sums, minimums, maximums or gcds. Point that out; it is the reason to prefer
+a segment tree when the operation is not a sum.
+
+## The reframing that makes it a counting tool
+
+<Snippet file="code/segment_tree.py" symbol="count_smaller_after_self" title="Counting with a BIT" />
+
+This is the move worth taking away, because it is not obvious.
+
+Walk the array **from the right**, and for each value ask "how many values
+strictly smaller than this have I already seen?" A Fenwick tree over *value
+ranks* answers that in O(log n): `prefix_sum(rank - 1)`.
+
+**Coordinate compression** — mapping values to their rank in the sorted set of
+distinct values — keeps the tree size at n regardless of how large or negative
+the actual values are. That preprocessing step is standard for this whole
+family and is worth naming.
+
+The same shape solves Reverse Pairs and counting inversions. There is also a
+[merge-sort solution](../divide-and-conquer/) to all three; which you find more
+natural is a legitimate preference, and offering both is a strong answer.
+
+## Lazy propagation, in one paragraph
+
+Range **update** plus range query needs a segment tree with lazy propagation:
+each node carries a pending update that is pushed down only when a query
+actually descends into it. It is the right answer to "add 5 to every element
+in [l, r], many times, with range sums in between".
+
+It is also a lot of code. In a 35-minute round, recognising that lazy
+propagation is what the problem needs, and saying so, is usually worth more
+than attempting it. If the constraints are small enough for a difference
+array, use [that](../prefix-sums/) instead.
+
+## Pitfalls
+
+- **Zero-indexing a Fenwick tree.** Infinite loop.
+- **Using a BIT for min or max.** Not invertible; you need a segment tree.
+- **Forgetting coordinate compression** with large or negative values.
+- **Off-by-one between inclusive and half-open ranges.** Pick one convention
+  and write it in a comment. The template here uses inclusive for Fenwick and
+  half-open for the segment tree — deliberately noted, because mixing them
+  silently is the classic error.
+- **Building one when prefix sums suffice.** If there are no updates, this is
+  over-engineering and interviewers will say so.
+- **`SortedList` might be simpler.** For "count smaller so far", an
+  [ordered structure](../ordered-set/) with `bisect` is often enough and much
+  shorter to write.
+
+## Anchor walkthroughs
+
+### Range Sum Query — Mutable
+
+The problem that exists to make you build one of these.
+
+**Clarify.** How many updates versus queries? (If updates are rare, prefix
+sums with periodic rebuilds might genuinely win — asking shows judgement.) Is
+the range inclusive? Are values bounded?
+
+**The two failed approaches**, stated first: a plain array is O(n) per query;
+a prefix-sum array is O(n) per update. Whichever you pick, the other operation
+is too slow. That tension *is* the motivation, and naming it is how you show
+you understand why the structure exists.
+
+**The insight.** A tree where each node covers a range, so both operations
+touch only O(log n) nodes.
+
+**Which structure.** Fenwick, because the operation is a sum and therefore
+invertible. Say why you did not reach for a segment tree.
+
+**Complexity.** O(n) build, O(log n) per update and query.
+
+**Follow-up:** Range Sum Query 2D — Mutable, which is a 2-D Fenwick with the
+same index arithmetic applied on both axes.
+
+### Count of Smaller Numbers After Self
+
+**Clarify.** Strictly smaller? Can values be negative or large? (Yes — hence
+compression.) Same output length as input?
+
+**Brute force.** O(n²) nested scan. At n = 10⁵ that is 10¹⁰.
+
+**The reframing**, spelled out: process right to left, and the question becomes
+"how many smaller values are already in my structure". That converts a
+pairwise problem into n independent range queries.
+
+**Coordinate compression**, and why: values may be up to 10⁴ in magnitude and
+negative, and you want a tree indexed 0..n−1.
+
+**Dry-run** `[5,2,6,1]`. Right to left: 1 → nothing seen → 0. 6 → seen {1} →
+1. 2 → seen {1,6}, smaller than 2 is just 1 → 1. 5 → seen {1,6,2}, smaller are
+1 and 2 → 2. Reverse → `[2,1,1,0]`.
+
+**Both solutions.** Offer the merge-sort version too, and say they are the
+same O(n log n).
+
+### Falling Squares
+
+A genuinely good segment-tree question, and one where the *query* is a max
+rather than a sum — so a Fenwick will not do.
+
+**The problem.** Squares drop onto a number line one at a time; after each,
+report the current maximum height anywhere.
+
+**The insight.** Dropping a square onto interval [l, r) means: query the
+**maximum** height already in that interval, land on top of it, then set the
+whole interval to that new height. That is a range max query plus a range
+assignment — segment tree with lazy propagation.
+
+**Why not Fenwick:** max is not invertible.
+
+**The practical alternative.** With only 1000 squares, coordinate-compress the
+endpoints and keep a plain list of placed squares, checking overlaps in O(n)
+per drop — O(n²) total, which passes comfortably. **Say this.** Recognising
+that the constraints permit a much simpler solution, and choosing it, is
+better engineering than deploying lazy propagation because you can.
+
+**When the segment tree is genuinely needed:** raise n to 10⁵ and the O(n²)
+approach dies. Being able to say exactly where the simple solution stops
+working is the most valuable thing you can offer here.

@@ -1,0 +1,187 @@
+---
+id: math-geometry
+title: Math & Geometry
+recognition:
+  - 'Digits, primes, factors, divisibility, modular arithmetic.'
+  - 'Overflow is the actual difficulty — reverse an integer, divide without <code>/</code>.'
+  - 'Points, lines, slopes, rectangles, or areas.'
+  - 'A number-theoretic identity collapses an O(n) loop to O(1).'
+  - 'The answer is "find the pattern", not "run an algorithm".'
+complexity: 'O(log n) for exponentiation · O(n log log n) for the sieve'
+template: code/math_geometry.py
+anchors:
+  - powx-n
+  - count-primes
+  - max-points-on-a-line
+related:
+  - bit-manipulation
+  - divide-and-conquer
+  - arrays-hashing
+  - two-pointers
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Mostly a set of small facts that you either have or do not. There is no
+unifying technique, so this page is a checklist rather than a method.
+
+The ones that actually recur are below. The rest — Catalan numbers, Chinese
+remainder, matrix exponentiation — are worth *recognising by name* and no
+more.
+
+## Fast exponentiation
+
+<Snippet file="code/math_geometry.py" symbol="my_pow" title="Binary exponentiation" />
+
+Squaring halves the exponent each round, so `2^30` takes 30 multiplications
+rather than a billion. The same loop with a `% mod` is **modular
+exponentiation**, which is how you compute `a^b mod m` for enormous `b` — and
+that shows up in any problem that says "return the answer modulo 10⁹+7".
+
+Invert once at the start for a negative exponent, not at the end; inverting
+the result loses precision.
+
+## The sieve
+
+<Snippet file="code/math_geometry.py" symbol="count_primes" title="Sieve of Eratosthenes" />
+
+Two optimisations, both worth saying:
+
+- Start crossing out at **`p*p`**, because every smaller multiple of `p`
+  already has a smaller prime factor and was struck out earlier.
+- Stop the outer loop at **`sqrt(n)`**, for the same reason.
+
+Without them it still works and it is noticeably slower — and the interviewer
+asked for the sieve specifically to see whether you know them.
+
+O(n log log n), which is very close to linear.
+
+## Geometry without floating point
+
+<Snippet file="code/math_geometry.py" symbol="max_points_on_a_line" title="Max Points on a Line" />
+
+The technique that matters here is **avoiding division**.
+
+Computing a slope as `dy / dx` is wrong twice over: floating point makes 1/3
+and 2/6 unequal, and a vertical line divides by zero. Normalising `(dy, dx)`
+by their gcd — with a fixed sign convention so that `(1, 2)` and `(-1, -2)`
+collapse to the same key — is exact integer arithmetic with no special cases.
+
+The same instinct applies elsewhere: compare `a/b < c/d` as `a*d < c*b`, and
+compare distances squared rather than taking square roots.
+
+## Overflow as the whole problem
+
+<Snippet file="code/math_geometry.py" symbol="reverse_integer" title="Reverse Integer" />
+
+The reversal is trivial. The question is entirely about the 32-bit bound, and
+Python's arbitrary-precision integers mean you must apply it by hand — which
+is a genuine gotcha, because the naive Python solution *looks* correct and
+passes every small test.
+
+In Java or C++ the check must happen **before** the multiplication that would
+overflow, not after; being able to say that shows you understand the
+difference between the languages rather than the problem.
+
+## Cycles in disguise
+
+<Snippet file="code/math_geometry.py" symbol="is_happy" title="Happy Number" />
+
+Any non-happy number enters a cycle, so this is cycle detection wearing a
+number-theory hat. A `seen` set works; Floyd's tortoise and hare
+([two pointers](../two-pointers/)) works in O(1) space and is the follow-up
+they want.
+
+Recognising "this repeats forever unless it terminates" as *cycle detection*
+is the transferable part.
+
+## The facts worth having
+
+| Fact | Use |
+| --- | --- |
+| `gcd(a,b) * lcm(a,b) == a*b` | LCM without a separate algorithm |
+| `a % m` is non-negative in Python | grouping by remainder needs no fixup |
+| Sum of `1..n` is `n(n+1)/2` | missing number, duplicate finding |
+| `n & (n-1)` clears the lowest set bit | powers of two, popcount |
+| A number has a divisor ≤ √n unless prime | trial division bound |
+| Digits of `n` number `floor(log10(n)) + 1` | digit problems |
+
+## Pitfalls
+
+- **Floating point for exact comparisons.** Use fractions or cross products.
+- **Division by zero** on vertical lines.
+- **Overflow**, especially in Java/C++, and especially *before* the operation.
+- **`%` on negatives.** Python floors (so `-7 % 3 == 2`); C++ and Java
+  truncate (so `-1`). If you are writing either, add `(x % m + m) % m`.
+- **Off-by-one on "primes below n" versus "primes up to n".** Read carefully.
+- **Reaching for maths when brute force fits.** If n ≤ 1000, just loop. The
+  clever identity is only worth it if the constraint demands it.
+
+## Anchor walkthroughs
+
+### Pow(x, n)
+
+**Clarify.** Can `n` be negative? (Yes.) Can `x` be zero? Is `n` bounded by
+32 bits? (Yes — and `-2^31` negated overflows in fixed-width languages, which
+is the trap.) How much precision is required?
+
+**Brute force.** Multiply n times: O(n). At n = 2^31 that is two billion
+operations.
+
+**The insight.** `x^n = (x^2)^(n/2)` for even n, and `x · x^(n-1)` for odd.
+Each step halves the exponent, so it is O(log n).
+
+**Dry-run** `2^10`: 10 is even → `4^5`; 5 is odd → `4 · 16^2`; 2 is even →
+`256^1`; result `4 · 256 = 1024`.
+
+**The edge case.** `n = -2^31`. Negating it overflows a 32-bit int. In Python
+this is free; in Java you must widen to `long` first. Saying that unprompted
+is a strong signal.
+
+**Follow-up:** modular exponentiation for `a^b mod m`, which is the same loop
+with a `% m` after each multiplication.
+
+### Count Primes
+
+**Clarify.** Strictly below n, or up to and including? (Below, on LeetCode.)
+How large is n? (5·10⁶, which rules out trial division per number.)
+
+**Trial division.** For each number, test divisors up to its square root:
+O(n√n). At n = 5·10⁶ that is far too slow — say the number.
+
+**The insight.** Instead of asking "is this prime", mark all the multiples of
+each prime as composite. Every composite is struck out by its smallest prime
+factor.
+
+**The two optimisations**, with reasons, as above.
+
+**Complexity.** O(n log log n) time, O(n) space. The log-log factor comes from
+the sum of reciprocals of primes — you do not need to derive it, but knowing
+it is not O(n log n) is worth the sentence.
+
+**Follow-up:** the segmented sieve, for when n is too large to hold a full
+boolean array. Name it; do not write it.
+
+### Max Points on a Line
+
+**Clarify.** Can points be duplicated? (Yes on some variants, and duplicates
+count toward every line — a real edge case.) Are coordinates integers? (Yes,
+which is what makes the exact-arithmetic approach available.) How many points?
+(300, so O(n²) is fine.)
+
+**The insight.** Fix one point; every other point defines a slope with it, and
+points sharing a slope are collinear with it. The answer is the largest group,
+plus the fixed point itself.
+
+**The precision conversation** is the actual content of the question. Explain
+why `dy/dx` fails — floating point and vertical lines — and then the gcd
+normalisation with a canonical sign. Do this *before* writing, because
+otherwise the interviewer will assume you were going to divide.
+
+**Complexity.** O(n²) — n fixed points, each scanning n others. With n = 300
+that is 9·10⁴.
+
+**Dry-run** three collinear points and one vertical pair. The vertical case is
+the one that crashes a division-based solution, so run it explicitly.

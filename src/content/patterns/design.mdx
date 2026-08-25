@@ -1,0 +1,183 @@
+---
+id: design
+title: Design (Data Structures)
+recognition:
+  - 'The problem name starts with <strong>Design</strong> or <strong>Implement</strong>.'
+  - 'You are given an <strong>API</strong> and a complexity contract — "all operations O(1)".'
+  - 'Caches, rate limiters, leaderboards, iterators, key-value stores with time.'
+  - 'A single structure cannot meet the contract, so two must be combined.'
+  - 'Operations arrive as a stream and state persists between them.'
+complexity: 'Whatever the contract says — usually O(1)'
+template: code/design.py
+anchors:
+  - lru-cache
+  - time-based-key-value-store
+  - lfu-cache
+related:
+  - linked-lists
+  - heaps
+  - ordered-set
+  - ood
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+This is the category no popular list has a bucket for, and one of the highest
+frequency at SDE-2. If you have been grinding Blind 75 and nothing else, this
+is your largest blind spot.
+
+The question is never "what algorithm". It is:
+
+> **Which two structures do I combine to hit the stated complexity contract?**
+
+Almost always one of them is a hash map, for O(1) lookup. The second one
+supplies an *order* the hash map cannot.
+
+| You need | Hash map plus |
+| --- | --- |
+| Recency order | doubly linked list |
+| Frequency order | map of frequency → linked list |
+| Sorted keys, neighbour queries | [ordered structure](../ordered-set/) |
+| Top-k / extremes | [heap](../heaps/) |
+| Random element in O(1) | array with swap-and-pop |
+| Values over time | array + binary search |
+
+Reading the contract and naming the pair **before writing any code** is the
+move. "get and put both O(1) — that rules out anything sorted, so I need a
+hash map for lookup plus a linked list for recency" is a complete solution
+stated in one sentence.
+
+## The canonical one
+
+<Snippet file="code/design.py" symbol="LRUCache" title="Hash map plus doubly linked list" />
+
+Neither structure alone works. A hash map has no order. A linked list has no
+O(1) lookup. Together: the map gives you the node in O(1), and the list lets
+you splice that node to the front in O(1).
+
+**Sentinel head and tail nodes** remove every null check from the splice
+operations. Without them, `_unlink` needs to handle "is this the first node",
+"is this the last", "is this the only one" — three special cases, and they are
+where the bugs live. One extra node each side deletes all of them.
+
+The other detail: it must be a **doubly** linked list. Removing a node from a
+singly linked list requires its predecessor, which is O(n) to find. If you
+find yourself writing a scan, that is the signal.
+
+Python's `OrderedDict` (or a plain `dict` in 3.7+, with `move_to_end`) does
+this for you. Say that you know — "in production I'd use `OrderedDict`" — and
+then write it out, because writing it out is the question.
+
+## Binary search inside a design problem
+
+<Snippet file="code/design.py" symbol="TimeMap" title="Time-based key-value store" />
+
+Timestamps arrive in increasing order, so each key's list is **already
+sorted** and needs no explicit sorting — noticing that is worth saying, since
+it is what makes `set` O(1).
+
+`bisect_right(times, timestamp) - 1` is the "largest entry not exceeding t"
+idiom. Off by one here and you return the wrong version, which is exactly what
+the problem tests.
+
+## The swap-and-pop trick
+
+<Snippet file="code/design.py" symbol="RandomizedSet" title="O(1) insert, remove and random" />
+
+The tension: a hash set gives O(1) membership but cannot pick uniformly at
+random; a list gives O(1) random access but O(n) removal from the middle.
+
+The resolution is one trick — **to remove an element, swap it with the last
+one and pop.** No shifting, so removal is O(1), and the array stays dense so
+random indexing stays uniform. The map must be updated for the element that
+moved, and forgetting that is the bug.
+
+## Pitfalls
+
+- **Writing code before naming the structures.** Spend the first minute on the
+  contract.
+- **Singly linked list** where a doubly linked one is needed.
+- **No sentinels**, and therefore three special cases per splice.
+- **Forgetting to update the map** when a node is evicted or moved.
+- **Capacity of zero.** `LRUCache(0)` should accept nothing. It is a real test
+  case.
+- **Updating an existing key** in a cache — it must count as a use *and* not
+  grow the size. Handling insert and update in one branch is the common bug.
+- **Not asking about thread safety.** For a cache or rate limiter, "should
+  this be safe under concurrent access?" is a legitimate and impressive
+  question. See [Concurrency](../concurrency/).
+
+## Anchor walkthroughs
+
+### LRU Cache
+
+**Clarify.** Does `get` count as a use? (Yes.) Does updating an existing key
+count as a use? (Yes.) What does `get` return on a miss? (−1.) Can capacity be
+zero? Is it thread-safe?
+
+**Name the pair first.** "O(1) for both operations rules out anything sorted.
+I need a hash map for lookup and a doubly linked list for recency order."
+Say this, then draw the two structures with an arrow from a map entry to a
+list node. The interviewer will visibly relax.
+
+**Then the four operations**, each stated before it is written: get (find,
+move to front), put-existing (update, move to front), put-new-with-room
+(insert at front), put-new-when-full (evict tail, insert at front).
+
+**The sentinels**, and why.
+
+**Dry-run** capacity 2: put(1,1), put(2,2), get(1) → 1 and 1 becomes most
+recent, put(3,3) evicts **2, not 1**. That eviction is the whole point of the
+question, so run it explicitly.
+
+**Follow-up:** thread safety (a lock around the whole thing, or a striped
+lock), and LFU.
+
+### Time Based Key-Value Store
+
+**Clarify.** Are timestamps strictly increasing per key? (Yes — and this is
+the question that makes `set` O(1) rather than requiring an insertion sort.)
+What if no value exists at or before the requested time? (Empty string.) Can
+the same timestamp repeat?
+
+**The insight.** Each key owns a sorted list, so `get` is a binary search for
+the largest timestamp not exceeding the query.
+
+**The bound.** `bisect_right(...) - 1`, and be able to say why not
+`bisect_left`: you want the last entry that is `<= t`, including an exact
+match.
+
+**Complexity.** `set` is O(1), `get` is O(log n) in the number of versions of
+that key.
+
+**Dry-run** set("foo","bar",1); get("foo",1) → "bar"; get("foo",3) → "bar";
+set("foo","bar2",4); get("foo",4) → "bar2"; get("foo",0) → "". That last one
+is the empty case and it is where an off-by-one shows up.
+
+### LFU Cache
+
+The Hard, and the natural follow-up to LRU. Worth preparing because it comes
+up specifically as the "can you go further" question.
+
+**The problem.** Evict the least *frequently* used; break ties by least
+recently used. So you need both orderings at once.
+
+**The structure — three pieces:**
+
+- `key → (value, frequency)`
+- `frequency → ordered collection of keys at that frequency` (an
+  `OrderedDict`, so it doubles as an LRU within each frequency bucket)
+- `min_frequency`, a single integer
+
+**Why `min_frequency` can be maintained in O(1):** it only ever increases by
+one when the last key at the current minimum is promoted, and it resets to 1
+whenever a new key is inserted. It never needs a search. That observation is
+the crux of the problem — without it, finding the eviction candidate is O(n).
+
+**Dry-run the tie-break:** two keys both used twice; the one touched longer
+ago goes. That is why each frequency bucket is itself ordered.
+
+**Complexity.** O(1) for both operations, which is what makes it Hard rather
+than Medium.
