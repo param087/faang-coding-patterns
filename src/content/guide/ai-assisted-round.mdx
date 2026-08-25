@@ -1,0 +1,136 @@
+---
+title: The AI-assisted coding round
+description: New in 2026 — Meta's AI-Enabled Coding round and Google's code-comprehension pilot, and how they are scored.
+order: 3
+---
+
+This is the newest thing in the loop and the one no existing prep list covers.
+
+In 2026 Meta added an **AI-Enabled Coding** round to its E4, E5 and E6 onsite
+loops: you work in CoderPad with a frontier model available in a sidebar.
+Google is piloting an AI-assisted **code comprehension** round, where you
+debug and extend an unfamiliar codebase with Gemini available. Other companies
+are following.
+
+If your last loop was before 2025, this will be unfamiliar. It rewards a
+different skill from the classic algorithm round, and preparing for it takes
+an afternoon.
+
+> **Confirm the format with your recruiter.** These rounds are rolling out
+> unevenly by company, level and office, and the rules differ — some allow the
+> model freely, some restrict it to specific phases, some are watching whether
+> you use it at all. Ask what is permitted before you rely on anything here.
+
+## What is actually being scored
+
+Not "can you get the model to write it". The model can write it. The signal
+is:
+
+- **Prompt quality.** Can you specify a problem precisely, including the
+  constraints and edge cases?
+- **Verification.** Do you check the output, or paste and hope?
+- **Debugging model output.** When it is subtly wrong — and it will be — do
+  you find the bug?
+- **Judgement.** Do you know when *not* to reach for it?
+
+That last one matters more than people expect. A candidate who prompts for
+"reverse a linked list" has told the interviewer they cannot write a
+twenty-second function, and has spent thirty seconds to save twenty.
+
+## How to use the sidebar well
+
+**Solve the problem first, in your head and out loud.** Decide the approach
+and the complexity before you prompt anything. The model is an
+*implementation* accelerator, not a substitute for the decision. If you prompt
+before you have an approach, you have outsourced the part being assessed.
+
+**Prompt with the constraints, not just the task.** Compare:
+
+> ✗ "write a function to find the longest substring without repeating
+> characters"
+
+> ✓ "Python. Sliding window, O(n) time, O(min(n, charset)) space. Input may be
+> empty; ASCII only. Return the length. Don't use any imports."
+
+The second gets you code you can actually check, because you specified what
+correct looks like.
+
+**Verify before you accept.** Read it line by line, trace one example out
+loud, and check the edge cases you listed earlier. Say what you are doing:
+
+> "Let me check this on an empty string and on `'dvdf'` — that's the case
+> where the left pointer could move backwards."
+
+That sentence is worth more than the code. It is the entire signal.
+
+**Say why when you do not use it.** "I'll write this one myself, it's shorter
+than describing it" is a good answer and demonstrates calibration.
+
+## Where models reliably get it wrong
+
+Worth knowing, because catching one of these live is the strongest thing you
+can do in this round:
+
+- **Off-by-one in binary search bounds** — especially `lower_bound` versus
+  `upper_bound`, and inclusive versus half-open intervals.
+- **Deduplication in backtracking.** `i > 0` instead of `i > start` is
+  extremely common in generated code.
+- **Integer division sign.** `a // b` versus `int(a / b)` on negatives.
+- **The 0/1 versus unbounded knapsack loop direction**, which flips the
+  meaning silently.
+- **Mutating the input** when the problem forbids it.
+- **Confidently wrong complexity claims** in the comments, particularly
+  "O(1) space" for something that allocates.
+- **Plausible but unverified edge-case handling** — an `if not nums: return 0`
+  that returns the wrong sentinel.
+
+Recognising these is exactly the pattern knowledge the rest of this site
+builds. The AI round does not make that knowledge less valuable; it makes it
+the thing you are graded on.
+
+## What not to do
+
+- **Do not paste the problem statement and accept the answer.** It is the
+  clearest possible fail, and it is what the round is designed to detect.
+- **Do not go silent while reading generated code.** Narrate the review the
+  same way you would narrate writing.
+- **Do not argue with a correct model.** If it found a better approach, say
+  so and take it. Stubbornness is not a signal of independence.
+- **Do not use it for the part you were asked to demonstrate.** If the round
+  is explicitly about your ability to write the algorithm, writing a prompt
+  instead misses the point.
+
+## Practising for it
+
+An afternoon is enough:
+
+1. Take five Medium problems you have already solved from this site.
+2. Solve each one again with a model in a second window — but **state your
+   approach out loud first**, then prompt for the implementation.
+3. Review every line before accepting it. Time yourself.
+4. Deliberately accept one wrong answer and see how long it takes you to find
+   the bug from the test cases.
+
+Step 4 is the one that transfers. The skill is not prompting; it is reading
+code you did not write, quickly, with suspicion.
+
+## Google's code-comprehension variant
+
+Different shape, same underlying skill. You are given an unfamiliar codebase
+and asked to find a bug, explain behaviour, or add a feature, with a model
+available.
+
+What is scored: how you navigate unfamiliar code, whether you form a
+hypothesis before changing anything, whether you verify the fix, and whether
+you use the model to *understand* rather than to *guess*.
+
+The useful habit here is the same one that works on a real codebase: read the
+tests first. They tell you what the code is supposed to do, which is the
+context that makes everything else legible.
+
+## The honest summary
+
+This round is much easier than the classic algorithm round if you know the
+material, and much harder if you were relying on memorised solutions. It
+rewards knowing *why* an approach is right — which is precisely what you
+cannot fake when reviewing someone else's code, model or otherwise.

@@ -1,0 +1,47 @@
+---
+import { getCollection } from 'astro:content'
+import Base from '../../layouts/Base.astro'
+import { routes } from '../../lib/paths.ts'
+
+const pages = (await getCollection('guide')).sort((a, b) => a.data.order - b.data.order)
+---
+
+<Base
+  title="Guide"
+  description="How to run a coding round: the framework, reading constraints, the Python toolkit, and the 2026 AI-assisted round."
+>
+  <div class="border-line-soft border-b py-10 lg:py-14">
+    <h1 class="text-[clamp(2rem,4.5vw,3rem)]">Round craft</h1>
+    <p class="text-ink-muted mt-4 max-w-[62ch] text-[15px] leading-relaxed">
+      The patterns are half of it. The other half is how you spend 45 minutes:
+      what to ask before writing anything, what the constraints are telling you,
+      and — new in 2026 — what happens when there is a language model in the
+      sidebar.
+    </p>
+  </div>
+
+  <ol class="divide-line-soft divide-y">
+    {
+      pages.map((page) => (
+        <li>
+          <a
+            href={routes.guide(page.id)}
+            class="group flex flex-wrap items-baseline gap-x-6 gap-y-1 py-6 transition-colors"
+          >
+            <span class="tabular text-ink-faint w-8 shrink-0 text-[12px]">
+              {String(page.data.order).padStart(2, '0')}
+            </span>
+            <span class="min-w-[16rem] flex-1">
+              <span class="group-hover:text-onlogn block text-[17px] font-medium transition-colors">
+                {page.data.title}
+              </span>
+              <span class="text-ink-muted mt-1 block max-w-[62ch] text-[13px] leading-relaxed">
+                {page.data.description}
+              </span>
+            </span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</Base>

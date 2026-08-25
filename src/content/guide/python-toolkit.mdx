@@ -1,0 +1,151 @@
+---
+title: The Python interview toolkit
+description: The standard library worth knowing cold, the traps, and which imports may not exist on the platform.
+order: 4
+---
+
+Python is the right choice for most coding rounds — you write a heap in one
+import rather than forty lines. The cost is a handful of behaviours that
+differ from Java and C++ in ways interviewers specifically probe.
+
+## What to know cold
+
+```python
+from collections import Counter, defaultdict, deque, OrderedDict
+from heapq import heappush, heappop, heapify, heappushpop, nlargest, nsmallest
+from bisect import bisect_left, bisect_right, insort
+from functools import cache, lru_cache, cmp_to_key
+from itertools import accumulate, combinations, permutations, product, pairwise
+from math import gcd, lcm, inf, isqrt, comb, perm
+```
+
+The ones that come up most:
+
+| Tool | Use |
+| --- | --- |
+| `Counter(xs)` | frequency map, plus `.most_common(k)` |
+| `defaultdict(list)` | grouping without `setdefault` |
+| `deque` | O(1) both ends — BFS queues, sliding windows |
+| `heapq` | min-heap; negate for max |
+| `bisect_left/right` | the binary-search bounds, already written |
+| `cache` | one-line memoisation for top-down DP |
+| `accumulate` | prefix sums in one call |
+| `pairwise` | adjacent pairs, Python 3.10+ |
+| `inf` | sentinel for min/max initialisation |
+
+## The traps
+
+**`heapq` is min-only.** For a max-heap, negate on the way in and out. Say
+that you are doing it — silently negated values are hard for the interviewer
+to read.
+
+**`//` floors, it does not truncate.** `-7 // 2` is `-4`. Interview problems
+almost always want truncation toward zero, which is `int(-7 / 2)` = `-3`. This
+single difference is the bug in Basic Calculator II, Evaluate RPN and Divide
+Two Integers.
+
+**`%` is non-negative in Python.** `-7 % 3` is `2`, where C++ and Java give
+`-1`. This is *helpful* for grouping by remainder, and a difference worth
+mentioning if you are writing in another language.
+
+**`[[0] * n] * m` aliases every row.** Writing to `grid[0][0]` writes to all
+of them. Use `[[0] * n for _ in range(m)]`. This is the most common Python bug
+in grid problems and it produces baffling behaviour.
+
+**`defaultdict` creates keys on read.** `if counts[x] == 0` inserts `x`. Use
+`.get(x, 0)` or `in` when only testing.
+
+**`&` binds looser than `==`.** `a & 1 == 0` parses as `a & (1 == 0)`.
+Parenthesise bit operations.
+
+**Integers are unbounded.** No overflow, which is usually convenient — but
+when the problem *specifies* 32-bit behaviour (Reverse Integer, Sum of Two
+Integers, Single Number II), you must apply the bound by hand with
+`0xFFFFFFFF` masking.
+
+**String concatenation in a loop is O(n²).** Collect into a list and
+`"".join()`.
+
+**Recursion limit is 1000.** A skewed tree or a 300×300 grid DFS will exceed
+it. `sys.setrecursionlimit(10**6)` works but risks a real stack overflow;
+converting to an iterative version is the better answer, and saying so is the
+better signal.
+
+## What might not be available
+
+This matters more than it sounds.
+
+**`sortedcontainers`** — `SortedList`, `SortedDict`, `SortedSet`. Available on
+LeetCode; **often not** in a CoderPad or HackerRank session, and not in the
+standard library.
+
+It is the only good answer for
+[ordered-set problems](../../patterns/ordered-set/), so know the fallback:
+`bisect` on a plain list gives O(log n) search but **O(n) insert**, which is
+fine to about n = 10⁴ and quadratic beyond.
+
+State this explicitly when it comes up:
+
+> "I'd use `SortedList` from `sortedcontainers` — it's not standard library,
+> so if it's unavailable I'd fall back to `bisect` on a list and accept O(n)
+> insertion, which is fine at this n."
+
+`numpy` and `pandas` are almost never available and almost never appropriate.
+
+## Idioms worth having
+
+```python
+# Prefix sums
+prefix = list(accumulate(nums, initial=0))
+
+# Frequency map, then the top k
+counts = Counter(nums)
+top = [v for v, _ in counts.most_common(k)]
+
+# Grid neighbours
+DIRECTIONS = ((0, 1), (1, 0), (0, -1), (-1, 0))
+for dr, dc in DIRECTIONS:
+    nr, nc = r + dr, c + dc
+    if 0 <= nr < rows and 0 <= nc < cols:
+        ...
+
+# Memoised recursion, one line
+@cache
+def solve(i: int, remaining: int) -> int:
+    ...
+
+# Custom sort key, ascending then descending
+items.sort(key=lambda x: (x[0], -x[1]))
+
+# Pairwise comparison that no single key can express
+items.sort(key=cmp_to_key(compare))
+
+# Group by a derived key
+groups = defaultdict(list)
+for word in words:
+    groups[tuple(sorted(word))].append(word)
+
+# Two-heap median
+heappush(low, -heappushpop(high, value))
+```
+
+## Type hints
+
+Use them on signatures. They cost three seconds, they document the problem,
+and they catch the "is this a list of ints or a list of lists" confusion
+before it becomes a bug.
+
+Do not annotate every local variable — that reads as noise under time
+pressure.
+
+## Should you use Python?
+
+Almost always yes for interviews: it is the fastest language to *write*, which
+is the constraint that matters in 35 minutes.
+
+Two exceptions worth being honest about. If the problem is genuinely
+performance-sensitive and the constraint is tight, Python's constant factor
+can be the difference — say so and note what you would do in C++. And if the
+role is explicitly a Java or C++ role and the interviewer expects it, use
+theirs; matching the team's language is worth more than your fluency
+advantage.

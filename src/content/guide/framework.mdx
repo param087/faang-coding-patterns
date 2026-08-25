@@ -1,0 +1,140 @@
+---
+title: The 45-minute framework
+description: How to spend the clock in a coding round, and what the interviewer is scoring at each stage.
+order: 1
+---
+
+Most candidates who fail a coding round do not fail because they could not
+solve the problem. They fail because they spent nine minutes silently
+thinking, wrote code that did not compile, and ran out of time before testing
+it.
+
+The clock is the constraint. Here is where it goes.
+
+## The timings
+
+| Minutes | Stage | What you are producing |
+| --- | --- | --- |
+| 0–4 | **Clarify** | constraints, edge cases, the actual question |
+| 4–8 | **Brute force** | a working approach and its complexity, out loud |
+| 8–14 | **Optimise** | the real approach, agreed before you type |
+| 14–32 | **Code** | the implementation, narrated |
+| 32–40 | **Test** | a dry run, then the edge cases |
+| 40–45 | **Follow-ups** | their questions, your questions |
+
+Meta's E4/E5 loop is a **hard stop at 35 minutes** with two problems, so halve
+everything. Google gives 45 minutes and usually one or two problems with deep
+follow-ups.
+
+## 0–4 · Clarify
+
+Ask about the input before anything else. Three questions minimum, and they
+are not filler — each one changes the solution:
+
+- **Size.** "How large can n get?" This is the single most valuable question
+  on this page, because the answer tells you the complexity you can afford.
+  See the [constraint cheat sheet](../constraints/).
+- **Domain.** Negatives? Duplicates? Empty? Unicode or ASCII? Sorted already?
+- **Output.** The value or the indices? Any valid answer or a specific one?
+  What on failure — `-1`, empty, an exception?
+
+Then **restate the problem in your own words** and get agreement. Ten seconds,
+and it catches the misreading that would otherwise cost you the round.
+
+> "So: given an unsorted array of integers that may contain duplicates and
+> negatives, return the indices of the two values summing to the target, and
+> there's exactly one answer. Is that right?"
+
+## 4–8 · Brute force, with a number
+
+State the obvious solution and **say what it costs as a number**, not as a
+word:
+
+> "The brute force is every pair, which is O(n²). At n = 10⁵ that's 10¹⁰
+> operations — too slow, so I need something linear."
+
+"Too slow" is a hedge. "10¹⁰ operations" is an argument, and it is what
+justifies everything you do next. Do not skip this to look clever; skipping
+straight to the optimal solution reads as memorisation, and it leaves the
+interviewer nothing to grade if you then get stuck.
+
+## 8–14 · Optimise before you type
+
+**Do not write code until you and the interviewer agree on the approach.**
+This is the most common self-inflicted wound: candidates start typing a half-
+formed idea, discover the flaw at minute 25, and have no time left.
+
+Say the approach in one or two sentences, name the complexity, and pause.
+
+> "I'll trade space for time — as I scan, I'll check whether the complement is
+> already in a hash map. One pass, O(n) time and O(n) space. Shall I code
+> that?"
+
+If they say "can you do better on space?", you have just saved yourself
+fifteen minutes.
+
+## 14–32 · Code, narrating
+
+Write it as you would write real code. Meaningful names, no single letters
+except loop indices, functions if it is long.
+
+Narrate the *decisions*, not the syntax. Nobody needs "now I'm writing a for
+loop". They do need:
+
+> "I'm checking the complement before inserting, so a value can't pair with
+> itself."
+
+If you get stuck, **say what you are stuck on.** Silence is the worst possible
+signal — the interviewer cannot help you and cannot tell whether you are
+thinking or lost. "I'm trying to decide whether the left pointer should move
+past the duplicate here" invites a hint and costs you nothing.
+
+## 32–40 · Test properly
+
+**Do not say "I think that's right".** Run the code, out loud, on a real
+input. Pick one small enough to trace and interesting enough to matter — the
+one that exercises the branch you were least sure of.
+
+Then walk the edge cases explicitly:
+
+- empty input, single element, two elements
+- all identical values
+- already sorted, reverse sorted
+- the maximum and minimum permitted values
+- negatives and zero, if allowed
+
+Finding your own bug here is a **positive** signal. Finding it is what
+engineers do; the interviewer finding it for you is not the same thing.
+
+## 40–45 · Follow-ups
+
+Have questions ready. They are part of the assessment, and "no, I'm good"
+reads as disengagement.
+
+Good ones: what does the team work on, what does the codebase look like, what
+would the first three months involve. Bad ones: anything you could have
+answered from the careers page.
+
+## The scoring, roughly
+
+Interviewers at every FAANG grade on approximately four axes, and coding is
+only one of them:
+
+- **Problem solving** — did you get to a good approach, and how?
+- **Coding** — is it correct, clean and complete?
+- **Verification** — did you test it, and did you find your own bugs?
+- **Communication** — could they follow you, and could they help you?
+
+A perfect solution delivered in silence scores worse than a good solution
+delivered clearly. That is not a platitude about "soft skills" — it is
+literally how the rubric is weighted, because the job involves working with
+other people.
+
+## The three ways rounds are actually lost
+
+1. **Silent thinking.** Two minutes of quiet is fine. Nine is fatal.
+2. **Coding before agreeing.** Committing to an approach nobody checked.
+3. **No testing.** Running out of time with untested code on the screen, which
+   the interviewer must then assume does not work.
+
+None of the three is about algorithms.

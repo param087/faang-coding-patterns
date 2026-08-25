@@ -1,0 +1,102 @@
+---
+title: Reading the constraints
+description: What each bound on n is telling you to do, and the complexity budget behind it.
+order: 2
+---
+
+The constraint block is the most under-read part of a problem statement. It is
+also the part that tells you the answer.
+
+Interviewers and problem setters choose bounds deliberately: they are sized so
+that the intended solution fits comfortably and the naive one does not. Read
+them first, work out what you can afford, and the space of possible approaches
+collapses to two or three.
+
+## The budget
+
+Assume roughly **10⁸ simple operations per second**. That is the standard
+online-judge figure and a reasonable stand-in for "will this pass" in an
+interview. Python is perhaps 10–50× slower than C++ for tight loops, so in
+Python treat the working figure as closer to **10⁷** and say so if the margin
+is tight.
+
+## The table
+
+| Bound on n | Affordable | What it is telling you |
+| --- | --- | --- |
+| n ≤ 12 | O(n!) | permutations — try every ordering |
+| n ≤ 20 | O(2ⁿ), O(2ⁿ·n) | **bitmask.** Subsets of a set |
+| n ≤ 100 | O(n³), O(n⁴) | Floyd-Warshall, interval DP, triple loops |
+| n ≤ 1,000 | O(n²) | quadratic DP — LCS, edit distance, grid DP |
+| n ≤ 3,000 | O(n²) | still quadratic, but only just |
+| n ≤ 10⁵ | O(n log n) | **the most common bound.** Sort, heap, or one pass |
+| n ≤ 10⁶ | O(n) | linear, and watch your allocations |
+| n ≤ 10⁹ | O(log n), O(√n) | n is a *value*, not a length |
+
+## The three that matter most
+
+**`n ≤ 20`** is the least ambiguous signal in competitive programming. Nothing
+else makes 2ⁿ affordable, and nothing else makes an exponential algorithm the
+*intended* one. When you see it, start thinking about what subset a bitmask
+would represent. See [Advanced DP](../../patterns/dp-advanced/).
+
+**`n ≤ 10⁵`** is by a wide margin the most common bound you will meet. It
+means O(n log n) or better. Concretely: **stop looking for a clever O(n²).**
+There isn't one, and the time you spend hunting is time you do not spend
+writing the sort-based solution.
+
+**`n ≤ 10⁹`** means n is a *magnitude*, not a length. You cannot iterate to a
+billion. Either there is a mathematical identity, or — far more often — you
+are meant to
+[binary search the answer](../../patterns/binary-search-answer/). That bound
+appearing on a *value* rather than an array length is one of the most
+reliable tells on this page.
+
+## The other numbers in the block
+
+The bound on n is not the only signal.
+
+- **`0 ≤ nums[i] ≤ 100`** — a small value range invites counting sort,
+  bucketing, or a fixed-size array instead of a hash map.
+- **"lowercase English letters"** — a 26-slot array, and possibly a bitmask
+  over the alphabet.
+- **`1 ≤ k ≤ n`** with a large n — a [heap](../../patterns/heaps/) of size k
+  rather than sorting everything.
+- **"The answer is guaranteed to fit in a 32-bit integer"** — overflow is part
+  of the problem, and in Java or C++ you must check before the operation, not
+  after.
+- **"Return the answer modulo 10⁹+7"** — the count is astronomically large, so
+  it is a counting DP, and you must reduce at every step rather than at the
+  end.
+- **"You must do this in O(1) extra space"** — rules out the hash map you were
+  about to reach for. Usually means two pointers, in-place marking, or bit
+  tricks.
+- **"in-place"** — you may modify the input, which often *is* the trick (see
+  [Matrix](../../patterns/matrix/)).
+
+## Using it in the round
+
+Say it out loud. It takes eight seconds and it changes how the whole
+conversation goes:
+
+> "n is up to 10⁵, so I'm looking for O(n log n) or better — that rules out
+> the O(n²) pair scan I'd otherwise start with."
+
+You have now justified your approach before writing it, demonstrated that you
+read the problem carefully, and given the interviewer something to agree with.
+
+The reverse is also true and worth remembering: if you find yourself with an
+O(n log n) solution and the bound is `n ≤ 100`, you may have **over-solved**
+it. A cubic solution might be the intended one, and it might be much simpler
+to write correctly in the time available. Simplicity that fits the constraint
+beats sophistication that runs out the clock.
+
+## When the constraint is missing
+
+Sometimes there isn't one — a whiteboard problem stated verbally, or a vague
+"a large number of users". **Ask.** "Roughly how large does this get?" is
+always a reasonable question, and the answer determines everything downstream.
+
+If they say "assume it's huge and doesn't fit in memory", the problem has
+quietly become a systems question: external sorting, streaming, sharding. That
+is a different conversation and you should notice you are now in it.

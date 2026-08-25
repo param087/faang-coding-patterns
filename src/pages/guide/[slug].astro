@@ -1,0 +1,70 @@
+---
+import { getCollection, render } from 'astro:content'
+import Base from '../../layouts/Base.astro'
+import { routes } from '../../lib/paths.ts'
+
+export async function getStaticPaths() {
+  const pages = await getCollection('guide')
+  const ordered = pages.sort((a, b) => a.data.order - b.data.order)
+  return ordered.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      previous: ordered[i - 1] ?? null,
+      next: ordered[i + 1] ?? null,
+    },
+  }))
+}
+
+const { entry, previous, next } = Astro.props
+const { Content } = await render(entry)
+---
+
+<Base title={entry.data.title} description={entry.data.description}>
+  <article class="py-10 lg:py-14">
+    <nav class="text-ink-faint mb-6 text-[12px]" aria-label="Breadcrumb">
+      <a href={routes.guide('')} class="hover:text-ink">Guide</a>
+      <span class="mx-1.5">/</span>
+      <span class="text-ink-muted">{entry.data.title}</span>
+    </nav>
+
+    <header class="border-line-soft border-b pb-8">
+      <h1 class="text-[clamp(2rem,4.5vw,3rem)]">{entry.data.title}</h1>
+      <p class="text-ink-muted mt-4 max-w-[58ch] text-[15px] leading-relaxed">
+        {entry.data.description}
+      </p>
+    </header>
+
+    <div class="prose-page mt-10 max-w-[68ch]">
+      <Content />
+    </div>
+
+    <nav
+      class="border-line-soft mt-16 flex flex-wrap justify-between gap-4 border-t pt-6"
+      aria-label="Guide pages"
+    >
+      {
+        previous ? (
+          <a href={routes.guide(previous.id)} class="group max-w-[20rem]">
+            <span class="text-ink-faint block text-[11px] tracking-wide uppercase">Previous</span>
+            <span class="group-hover:text-ink text-ink-muted text-[14px]">
+              ← {previous.data.title}
+            </span>
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      {
+        next && (
+          <a href={routes.guide(next.id)} class="group max-w-[20rem] text-right">
+            <span class="text-ink-faint block text-[11px] tracking-wide uppercase">Next</span>
+            <span class="group-hover:text-ink text-ink-muted text-[14px]">
+              {next.data.title} →
+            </span>
+          </a>
+        )
+      }
+    </nav>
+  </article>
+</Base>
