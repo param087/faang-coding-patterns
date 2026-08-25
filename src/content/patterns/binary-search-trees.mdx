@@ -1,0 +1,183 @@
+---
+id: binary-search-trees
+title: Binary Search Trees
+recognition:
+  - 'The problem says <strong>binary search tree</strong> — the ordering is a gift, use it.'
+  - 'The words <strong>k-th smallest</strong>, <strong>validate</strong>, <strong>closest value</strong>, <strong>range sum</strong>.'
+  - 'You need sorted order out of a tree without sorting anything.'
+  - 'An iterator over a tree with O(1) amortised <code>next()</code> and O(h) space.'
+  - 'Insert or delete while preserving an ordering invariant.'
+complexity: 'O(h) — O(log n) balanced, O(n) degenerate'
+template: code/binary_search_trees.py
+anchors:
+  - validate-binary-search-tree
+  - kth-smallest-element-in-a-bst
+  - binary-search-tree-iterator
+related:
+  - binary-trees
+  - binary-search
+  - ordered-set
+  - divide-and-conquer
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+One fact carries the whole category:
+
+> **The in-order traversal of a BST is sorted.**
+
+Whenever a BST problem looks hard, ask what the sorted sequence gives you.
+K-th smallest is "stop after k". Validate is "check the sequence is
+increasing". Two-sum in a BST is "two pointers on a sorted list". Minimum
+absolute difference is "the smallest gap between consecutive elements".
+
+The second fact is that you can **prune**. At each node you know which
+subtree could possibly contain your target, so you discard half — which is
+why every operation is O(h) rather than O(n).
+
+## Validation is a range problem
+
+<Snippet file="code/binary_search_trees.py" symbol="is_valid_bst" title="Carry the allowed range down" />
+
+The trap here is worth dwelling on, because almost everyone falls into it
+once. Checking only `node.left.val < node.val < node.right.val` is a **local**
+test, and BST-ness is a **global** property. This tree passes the local check
+and is not a BST:
+
+```
+      5
+     / \
+    1   4
+       / \
+      3   6
+```
+
+The 3 is in 5's right subtree and smaller than 5. A local check never sees
+that relationship. Carrying `(low, high)` down the recursion does, because the
+constraint tightens as you descend.
+
+The alternative — do an in-order traversal and confirm it is strictly
+increasing — is equally correct and sometimes easier to explain. Have both.
+
+## Lazily sorted order
+
+<Snippet file="code/binary_search_trees.py" symbol="inorder" title="Iterative in-order, as a generator" />
+
+Being a generator is not stylistic. It means `kth_smallest` stops after k
+values instead of materialising the whole traversal, taking the cost from
+O(n) to O(h + k).
+
+The `while node: descend left` inner loop is also exactly the **BST
+Iterator**: the stack holds the path of unvisited ancestors, `next()` pops
+one and descends into its right subtree. Space is O(h), not O(n), which is
+the requirement that makes the problem interesting.
+
+## Mutation
+
+<Snippet file="code/binary_search_trees.py" symbol="delete" title="Deletion — three cases" />
+
+Insert is easy. Delete has three cases and only the last is interesting:
+
+- **No children** — return `None`.
+- **One child** — return that child, splicing the node out.
+- **Two children** — you cannot just remove it. Replace its value with its
+  **in-order successor** (the smallest value in the right subtree), then
+  delete that successor from the right subtree. Its predecessor works equally
+  well; pick one and say why it is valid.
+
+The reason the successor works: it is the next value in sorted order, so
+putting it in this position keeps the sequence increasing.
+
+## Use the ordering
+
+<Snippet file="code/binary_search_trees.py" symbol="lowest_common_ancestor" title="LCA in O(h), no recursion" />
+
+Compare with the general binary-tree LCA on the
+[Binary Trees](../binary-trees/) page: that one explores both subtrees and is
+O(n). Here, if both targets are smaller than the current node, the answer is
+strictly left — one comparison discards half the tree. The first node that
+*splits* the two targets is the answer.
+
+Applying the general algorithm to a BST is not wrong, but it throws away the
+ordering, and using the ordering is the entire point of being told it is a
+BST.
+
+## Pitfalls
+
+- **The local-check trap** above.
+- **Duplicates.** BSTs usually assume distinct values. If duplicates are
+  allowed, decide whether they go left or right and be consistent — and ask,
+  because it changes `<` to `<=` in several places.
+- **Degenerate trees.** A BST built from sorted input is a linked list: h = n,
+  every operation O(n). If the interviewer asks about worst case, that is the
+  answer, and the fix is a self-balancing tree (AVL, red-black) — know the
+  names even if you would never implement one in a round.
+- **Recursion depth** on a degenerate tree, same as anywhere else.
+- **`float('-inf')` bounds** must be exclusive: `low < node.val < high`, not
+  `<=`, or equal values pass validation.
+
+## Anchor walkthroughs
+
+### Validate Binary Search Tree
+
+**Clarify.** Are duplicates allowed, and if so, which side? Is a single node
+valid? An empty tree? Are values bounded (does `float('inf')` work as a
+sentinel)?
+
+**The wrong answer, said out loud.** "The obvious check is that each node sits
+between its children — but that's local, and BST-ness is global." Then draw
+the counterexample. Volunteering the trap before the interviewer springs it is
+a strong move.
+
+**The insight.** Pass down the open interval each subtree may occupy. Going
+left tightens the upper bound to the current value; going right tightens the
+lower bound.
+
+**Dry-run** the counterexample tree above: at node 4 the allowed range is
+`(5, inf)`, so 3 fails immediately. Compare with the local check, which
+passes.
+
+**Follow-up:** "do it iteratively", which is the in-order traversal with a
+`previous` variable checking strict increase.
+
+### K-th Smallest Element in a BST
+
+**Clarify.** Is k 1-indexed? Is it guaranteed valid? Will this be called many
+times, and can the tree change between calls? (That last question is the
+whole follow-up.)
+
+**The insight.** In-order gives sorted order, so stop at the k-th value. O(h +
+k), not O(n) — say the distinction, because it is the reason to use the
+iterative generator rather than collecting a list.
+
+**The follow-up is the real question.** "The BST is modified often and you
+must find the k-th smallest frequently — how would you optimise?" The answer
+is to augment each node with the **size of its subtree**, which makes
+selection O(h): at each node, compare k with the left subtree's size and
+descend accordingly. Maintaining those counts on insert and delete is O(h) too.
+
+Knowing "augment the node with subtree size" is the transferable idea here —
+it is the same technique behind order-statistic trees and behind Count of
+Smaller Numbers After Self.
+
+### BST Iterator
+
+**Clarify.** Must `next()` be O(1)? Amortised or worst case? Is O(h) space the
+requirement, or O(n) acceptable?
+
+**The cheap answer** is to flatten the tree into a list in the constructor —
+O(n) time and O(n) space, `next()` trivially O(1). Say it, then say why the
+constraint rules it out.
+
+**The intended answer** is the controlled stack: push the entire leftmost
+path in the constructor; `next()` pops, then pushes the leftmost path of the
+popped node's right child.
+
+**Why `next()` is amortised O(1):** each node is pushed exactly once and
+popped exactly once across the whole iteration, so n calls do O(n) total work.
+A single call can be O(h), which is why the guarantee is amortised — and
+being precise about that distinction is the point of the question.
+
+**Space** is O(h), because the stack only ever holds one root-to-node path.
