@@ -1,0 +1,158 @@
+---
+id: divide-and-conquer
+title: Recursion & Divide and Conquer
+recognition:
+  - 'The problem splits cleanly into independent halves.'
+  - 'You need the <strong>k-th</strong> something and do not need the rest sorted.'
+  - 'Counting pairs across a split — inversions, reverse pairs, smaller-after-self.'
+  - 'A sorted structure built from a sorted array.'
+  - 'The expected complexity has a <strong>log</strong> and no obvious binary search.'
+complexity: 'O(n log n), or O(n) when only one half recurses'
+template: code/divide_and_conquer.py
+anchors:
+  - kth-largest-element-in-an-array
+  - count-of-smaller-numbers-after-self
+  - maximum-subarray
+related:
+  - sorting
+  - binary-search
+  - heaps
+  - segment-tree
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Split, solve the halves, combine. Two variations are worth more than the
+generic shape.
+
+## Recursing into only one half
+
+<Snippet file="code/divide_and_conquer.py" symbol="quickselect" title="Quickselect" />
+
+This is the idea worth taking away. Quicksort partitions and recurses into
+**both** halves: T(n) = 2T(n/2) + n, which sums to O(n log n). Quickselect
+knows which half contains the answer and discards the other:
+T(n) = T(n/2) + n, which sums to **O(n)**.
+
+Same partition, half the recursion, an entire complexity class better.
+
+**The random pivot is not optional.** With a fixed pivot, sorted input
+degrades to O(n²) — and LeetCode's test cases include sorted input precisely
+to catch that. Say "I'll randomise the pivot to avoid the sorted-input worst
+case" as you write it.
+
+Be honest about the bound: O(n) **expected**, O(n²) worst case. If the
+interviewer wants a guarantee, the answer is median-of-medians at O(n) worst
+case with a bad constant — name it, do not attempt it.
+
+## When the combine step does the work
+
+<Snippet file="code/divide_and_conquer.py" symbol="count_smaller_after_self" title="Counting during the merge" />
+
+A merge sort where the merge **counts**. When an element from the right half
+is emitted before one from the left, it is smaller than every remaining left
+element — so you credit them all at once with `j`, the number already taken
+from the right.
+
+Indices ride along with the values so the counts land in the right slots after
+the sorting has scrambled the order.
+
+This same skeleton solves Count of Smaller Numbers After Self, Reverse Pairs,
+and counting inversions. There is also a
+[Fenwick tree](../segment-tree/) solution to all three — worth naming as an
+alternative, since which one you find more natural is a legitimate preference.
+
+## When divide and conquer is the wrong tool
+
+<Snippet file="code/divide_and_conquer.py" symbol="max_subarray" title="Kadane, not divide and conquer" />
+
+Maximum Subarray has a well-known O(n log n) divide-and-conquer solution:
+best-in-left, best-in-right, best-crossing-the-middle. It is a classic
+teaching example, and it is **worse than the O(n) answer**.
+
+Kadane's is one line of state: either extend the running subarray or start
+fresh here. Give Kadane. Mention the D&C version exists and that you would not
+use it. Knowing when a technique is *not* the right one is worth as much as
+knowing when it is.
+
+## Pitfalls
+
+- **Fixed pivot in quickselect** on sorted input.
+- **Mutating the caller's list.** `quickselect` partitions in place; copy
+  first unless the problem allows mutation.
+- **Recursion depth.** Merge sort on n = 10⁵ recurses 17 deep — fine.
+  Quickselect with a bad pivot can recurse n deep — another reason to
+  randomise.
+- **Off-by-one in the k-th mapping.** "k-th largest" is index `n - k` when
+  sorted ascending. Write it down; do not compute it in your head.
+- **Claiming O(n) worst case** for quickselect.
+- **Losing stability.** Merge sort is stable if you break ties toward the left
+  half (`<=`). If the problem cares about original order among equals, that
+  matters.
+
+## Anchor walkthroughs
+
+### Kth Largest Element in an Array
+
+**Clarify.** Is k 1-indexed? Is it the k-th largest *distinct* value, or by
+position? (Big difference — `[3,3,3]` with k = 2 is 3 by position and
+undefined by distinctness.) May I mutate the input?
+
+**The ladder**, and giving all three reads much better than jumping to one:
+
+1. **Sort**, take index `n - k`. O(n log n), one line, always correct.
+2. **Min-heap of size k**. O(n log k). Better when k ≪ n, and the only option
+   if the input is a stream.
+3. **Quickselect**. O(n) expected, O(n²) worst.
+
+**Say which you would ship.** For an interview answer: quickselect if they
+asked to beat n log n, heap if the data streams, sort if n is small and
+clarity matters. Having a reasoned preference is the signal.
+
+**Dry-run** the partition on `[3,2,1,5,6,4]`, k = 2 → target index 4. Show one
+partition step and how you decide which side to keep.
+
+### Count of Smaller Numbers After Self
+
+**Clarify.** Strictly smaller, or smaller-or-equal? (Strictly.) Can values be
+negative? Is the output the same length as the input?
+
+**Brute force.** For each index, scan right. O(n²). At n = 10⁵ that is 10¹⁰.
+
+**The insight.** Merge sort already compares every cross-pair exactly once —
+so count while merging, instead of throwing the comparisons away.
+
+**The bookkeeping.** Carry `(original_index, value)` pairs, because after
+sorting you no longer know where a value came from. Getting this wrong
+produces counts that are correct as a multiset but in the wrong order.
+
+**Dry-run** `[5,2,6,1]` → `[2,1,1,0]`. Trace one merge: when 1 is emitted
+before 5, everything still in the left half gets credited.
+
+**Alternative:** a [Fenwick tree](../segment-tree/) over compressed ranks,
+walking right to left and asking "how many smaller values have I seen". Same
+O(n log n), and arguably easier to reason about. Offer both.
+
+### Maximum Subarray
+
+**Clarify.** Must the subarray be non-empty? (Yes — otherwise an all-negative
+array answers 0.) Contiguous? Return the sum or the indices?
+
+**The point of the question**, in an interview: it is asked to see whether you
+reach for the right tool. The D&C solution is O(n log n) and impressive-
+looking; Kadane is O(n) and three lines.
+
+**Kadane's insight.** At each element, the best subarray ending here is either
+that element alone or that element appended to the best subarray ending
+previously. If the running total has gone negative, it can only hurt — drop
+it.
+
+**The edge case.** Initialise from `nums[0]`, not 0. Seeding with 0 returns 0
+for `[-1]`, which is wrong, and it is the test they run.
+
+**Follow-up:** return the actual subarray, which needs two extra index
+variables; or the circular version (Maximum Sum Circular Subarray), which is
+`max(normal_kadane, total - minimum_kadane)` with a special case when every
+element is negative.

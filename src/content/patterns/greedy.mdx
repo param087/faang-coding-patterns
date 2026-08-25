@@ -1,0 +1,168 @@
+---
+id: greedy
+title: Greedy & Exchange Arguments
+recognition:
+  - 'A local rule seems obviously right — and you need to justify it.'
+  - 'The words <strong>maximum number of</strong>, <strong>minimum number of</strong>, <strong>fewest</strong>, <strong>as many as possible</strong>.'
+  - 'Intervals, scheduling, or jumping — sort then sweep.'
+  - 'Each step has an obvious best choice that never needs revisiting.'
+  - 'A DP solution exists but the constraints suggest something linear.'
+complexity: 'O(n) or O(n log n) with a sort'
+template: code/greedy.py
+anchors:
+  - jump-game-ii
+  - gas-station
+  - candy
+related:
+  - intervals
+  - sorting
+  - dp-1d
+  - heaps
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+A greedy solution is **worthless without a reason it is optimal**. Interviewers
+know that greedy is where candidates guess, so the question after your code is
+always some form of "how do you know that works?"
+
+The reason is almost always an **exchange argument**:
+
+> Take any optimal solution. Show that swapping its first choice for the
+> greedy choice leaves it no worse. Repeat. Therefore the all-greedy solution
+> is optimal.
+
+If you cannot construct that argument, the problem is probably
+[dynamic programming](../dp-1d/) and greedy will fail on some case you have
+not thought of.
+
+## One variable instead of a table
+
+<Snippet file="code/greedy.py" symbol="can_jump" title="Jump Game" />
+
+The DP answer is `reachable[i]` for every index — O(n) space, O(n²) time in
+the naive form. The greedy is one variable: track the furthest index reachable
+so far, and if the loop ever stands beyond it, there is a gap nothing crosses.
+
+**Why it is safe:** reachability is monotone. If you can reach index i, you
+can reach everything before it, so a single frontier captures all the
+information a table would.
+
+<Snippet file="code/greedy.py" symbol="min_jumps" title="Jump Game II — BFS without a queue" />
+
+This is a **breadth-first search written without a queue**. `current_end` is
+the boundary of the current jump — the end of the current BFS level — and
+reaching it means one more jump has been committed. `farthest` is the boundary
+of the next level.
+
+Seeing it as BFS is what makes it obviously correct, and it is a better
+explanation than "we jump when we have to".
+
+## The two-pass rule
+
+<Snippet file="code/greedy.py" symbol="candy" title="Candy — constraints in both directions" />
+
+Worth studying because it is where single-pass greedy **fails**.
+
+The constraint points both ways: a child must have more than their left
+neighbour *and* more than their right one. No single sweep can satisfy both,
+because when you are going left to right you cannot yet see the right
+neighbour's final value.
+
+Two passes fix it. Left to right handles the left constraint; right to left
+handles the right one, taking a `max` so the first pass is not undone. That
+`max` is the entire subtlety — plain assignment breaks `[1,3,2,2,1]`.
+
+**The transferable lesson:** when constraints point in two directions, do two
+passes and combine.
+
+## When the greedy is a formula
+
+<Snippet file="code/greedy.py" symbol="task_scheduler" title="Task Scheduler" />
+
+Sometimes the greedy collapses into arithmetic. The most frequent task defines
+a skeleton of `(maxCount − 1)` gaps of length `cooldown + 1`, plus the tasks
+tied for most frequent. If there are enough other tasks to fill every idle
+slot, there is no idling and the answer is simply `len(tasks)`.
+
+`max(len(tasks), skeleton)` handles both regimes in one line, and being able
+to explain *both branches* is what makes it a real answer rather than a
+remembered formula.
+
+## Pitfalls
+
+- **Greedy that is not optimal.** Coin Change with arbitrary denominations is
+  the standard counterexample: greedy fails on coins `[1, 3, 4]` and amount 6
+  (greedy gives 4+1+1, optimal is 3+3). Have it ready — it is the answer to
+  "why not greedy here?"
+- **No exchange argument.** If you cannot produce one, say so and reach for DP
+  rather than hoping.
+- **Sorting by the wrong key.** Interval scheduling sorts by *end*, not start.
+  See [Intervals](../intervals/).
+- **Missing the second pass** when constraints are bidirectional.
+- **Local optimum ≠ global.** The whole risk of the category, in four words.
+
+## Anchor walkthroughs
+
+### Jump Game II
+
+**Clarify.** Is reaching the end guaranteed? (In Jump Game II, yes — otherwise
+it is Jump Game I.) Can jumps be zero-length? Is the answer the count of
+jumps, not of indices?
+
+**The DP solution first.** `dp[i]` = fewest jumps to reach i, filled by
+relaxing from every earlier index. O(n²), correct, and it establishes the
+baseline.
+
+**The insight.** It is BFS by levels: from everything reachable in k jumps,
+compute everything reachable in k + 1. Track the two boundaries and you never
+need a queue.
+
+**Dry-run** `[2,3,1,1,4]`. Level 0 is index 0. From it you reach up to index 2
+— that is level 1. From indices 1 and 2 you reach up to index 4 — level 2.
+Answer 2. Point at where `i == current_end` fires, because that is the line
+doing all the work.
+
+**Why the loop stops at `len(nums) - 1`:** arriving at the last index does not
+require another jump, and including it over-counts by one.
+
+### Gas Station
+
+**Clarify.** Is the answer guaranteed unique? (Yes.) Is the circuit
+clockwise? Can values be negative individually? (The differences can.)
+
+**Two independent facts**, and stating them separately is what makes the
+one-pass solution obvious:
+
+1. If total gas < total cost, **no** start works. Conservation of fuel.
+2. If you run dry partway from `start`, **no station between `start` and the
+   failure point works either** — each would begin with even less fuel in the
+   tank. So the next candidate is the station *after* the failure.
+
+Fact 2 is the one that turns O(n²) into O(n), and it is the part interviewers
+want articulated.
+
+**Dry-run** `gas = [1,2,3,4,5]`, `cost = [3,4,5,1,2]`. Totals are equal, so an
+answer exists. Starting at 0: −2, then −4 — fail at index 1, so restart at 2.
+From 2: −2, fail at 2... trace it properly on the board; the point is watching
+`start` jump forward rather than incrementing.
+
+### Candy
+
+**Clarify.** Must every child get at least one? (Yes.) Are equal ratings
+required to get equal candy? (No — equal neighbours have *no* constraint
+between them, which surprises people and is worth confirming.)
+
+**The failed single pass.** Try left-to-right only on `[1,3,2,2,1]` and watch
+it produce too few candies for the descending tail. Showing the failure is
+worth more than asserting that two passes are needed.
+
+**The insight.** Two passes, one per direction, combined with `max`.
+
+**Complexity.** O(n) time, O(n) space.
+
+**Follow-up:** O(1) space. It exists — count the lengths of ascending and
+descending runs and use the triangular-number formula — and it is
+significantly fiddlier. Mention it exists; attempt it only with time to spare.

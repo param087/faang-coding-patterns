@@ -1,0 +1,175 @@
+---
+id: dp-strings
+title: DP on Strings & Subsequences
+recognition:
+  - '<strong>Two strings</strong>, and you must align, transform or compare them.'
+  - 'The words <strong>edit distance</strong>, <strong>common subsequence</strong>, <strong>matching</strong>, <strong>interleaving</strong>.'
+  - 'Pattern matching with wildcards — <code>*</code> and <code>.</code> or <code>?</code>.'
+  - 'Count how many ways one string can produce another.'
+  - 'Palindromic subsequences, which are LCS with the reverse.'
+complexity: 'O(m·n)'
+template: code/dp_strings.py
+anchors:
+  - edit-distance
+  - longest-common-subsequence
+  - regular-expression-matching
+related:
+  - dp-grid-knapsack
+  - string-algorithms
+  - dp-1d
+  - backtracking
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+The state is almost always **two pointers, one into each string**:
+
+> `dp[i][j]` answers the question for the first i characters of `a` and the
+> first j characters of `b`.
+
+Once you accept that, the recurrence is a two-case split — either the current
+characters match, or they do not — and the whole category becomes mechanical.
+
+<Snippet file="code/dp_strings.py" symbol="longest_common_subsequence" title="Longest common subsequence" />
+
+Match → take the diagonal and add one. No match → take the better of dropping
+one character from either string.
+
+The rolled version needs `diagonal` saved before the overwrite, because
+`dp[j]` is about to stop holding `dp[i-1][j]` and start holding `dp[i][j]`.
+Write the full 2-D table first if it helps; fold second.
+
+## Edit distance is three predecessors
+
+<Snippet file="code/dp_strings.py" symbol="edit_distance" title="Edit distance" />
+
+Each of the three operations corresponds to one predecessor, and naming them
+while writing is what makes the code readable:
+
+- `previous[j]` — **delete** from `a`
+- `current[j-1]` — **insert** into `a`
+- `previous[j-1]` — **replace**
+
+When the characters already match, the cost carries over from the diagonal
+for free and none of the three applies.
+
+**The base row and column are not zero.** Turning a string of length i into
+the empty string costs i deletions, so row 0 is `0..n` and column 0 is `0..m`.
+Initialising them to zero gives an answer that is too small and passes several
+test cases before failing.
+
+## The reframings worth knowing
+
+<Snippet file="code/dp_strings.py" symbol="longest_palindromic_subsequence" title="LPS is LCS with the reverse" />
+
+One line, and it saves writing a second DP. The longest palindromic
+subsequence of `s` is the longest common subsequence of `s` and `reverse(s)`.
+Spotting reductions like this is worth more than knowing another recurrence.
+
+A related one: the **minimum insertions to make a string a palindrome** is
+`len(s) - LPS(s)`. Same table, different reading.
+
+## Wildcards
+
+<Snippet file="code/dp_strings.py" symbol="is_match" title="Regular expression matching" />
+
+The Hard of the category, and `*` is the reason: it modifies the *preceding*
+character and can match **zero** occurrences. So the star case is a two-way
+branch — skip the pair entirely (`dp[i][j-2]`), or consume one character of
+`s` and stay at the same pattern position (`dp[i-1][j]`).
+
+**The base row is where it fails.** An empty string still matches `a*b*c*`, so
+`dp[0][j]` must be true whenever the pattern up to j is entirely star-pairs.
+Leaving row 0 as all-false except `dp[0][0]` produces a solution that handles
+`"aa"` against `"a*"` and fails `""` against `"a*"`.
+
+## Counting instead of optimising
+
+<Snippet file="code/dp_strings.py" symbol="num_distinct" title="Distinct Subsequences" />
+
+Same skeleton, but the recurrence **sums** rather than taking a min or max,
+because the question is "how many" rather than "what is best". When the
+characters match you may either use this occurrence or skip it, and both
+possibilities are counted.
+
+The backwards inner loop is the [0/1 knapsack](../dp-grid-knapsack/) rule
+again — each character of `s` may be consumed at most once per position.
+
+## Pitfalls
+
+- **Zero base row/column** in edit distance.
+- **Missing the empty-string case** for `*` patterns.
+- **Subsequence versus substring.** LCS is not contiguous; longest common
+  *substring* is a different (and simpler) recurrence that resets to 0 on a
+  mismatch. Read the question twice.
+- **Off-by-one between `dp` and string indices.** `dp[i][j]` uses `a[i-1]` and
+  `b[j-1]`. Be explicit.
+- **Folding too early.** Get the 2-D version right first.
+- **O(m·n) space when O(min(m,n)) will do.** Roll the shorter dimension.
+
+## Anchor walkthroughs
+
+### Edit Distance
+
+**Clarify.** Which operations, and do they cost the same? (Insert, delete,
+replace, all cost 1. A variant weights them differently and it changes the
+recurrence.) Is it case-sensitive? Can either string be empty?
+
+**Brute force.** Recursive over the three operations, O(3^(m+n)). State it,
+then observe the subproblems repeat, which is the case for memoisation.
+
+**State.** "`dp[i][j]` = minimum operations to turn the first i characters of
+`a` into the first j characters of `b`."
+
+**The three predecessors**, named as you write them.
+
+**Base cases**, said explicitly: turning anything into the empty string is all
+deletions.
+
+**Dry-run** `"horse" → "ros"` = 3. Trace the first row and column to show the
+base cases, then one interior cell.
+
+**Follow-up:** reconstruct the actual sequence of edits, which is a backwards
+walk through the table following whichever predecessor produced each value.
+
+### Longest Common Subsequence
+
+**Clarify.** Subsequence, not substring? Return the length or the sequence
+itself? Are the strings the same length?
+
+**The insight.** Either the current characters match — in which case they can
+both be consumed and the answer grows by one — or one of them is not in the
+LCS, so try dropping each.
+
+**Complexity.** O(m·n) time. Space O(min(m,n)) after folding, which is worth
+doing and worth mentioning.
+
+**Dry-run** `"abcde"` and `"ace"` → 3. Show two cells: one where the
+characters match (diagonal + 1) and one where they do not (max of two).
+
+**Follow-up:** Shortest Common Supersequence, which is `m + n - LCS`, and
+Delete Operation for Two Strings, which is `m + n - 2·LCS`. One table, three
+problems.
+
+### Regular Expression Matching
+
+**Clarify.** Does `*` apply to the preceding character? (Yes.) Is `**` valid
+input? (No.) Must the match cover the entire string, not just a prefix? (Yes
+— and it is the difference between this and a search.)
+
+**Do the easier one first if offered.** Wildcard Matching (`?` and `*`, where
+`*` matches any sequence on its own) is a cleaner recurrence. Regular
+Expression Matching is harder because `*` is bound to a character.
+
+**The two-way star branch**, stated before coding: zero occurrences, or one
+more occurrence.
+
+**The base row**, stated before coding.
+
+**Dry-run** three inputs and no fewer: `("aa", "a")` false, `("aa", "a*")`
+true, `("", "a*")` true. The third is the base-row case and it is the one that
+catches almost everyone.
+
+**Complexity.** O(m·n) time and space; the space folds to O(n).

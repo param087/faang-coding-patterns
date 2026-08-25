@@ -1,0 +1,153 @@
+---
+id: backtracking
+title: Backtracking
+recognition:
+  - 'The words <strong>all</strong>, <strong>every</strong>, <strong>enumerate</strong>, <strong>generate</strong> — combinations, permutations, partitions.'
+  - 'n ≤ 20 (or smaller). Exponential is affordable and therefore intended.'
+  - 'You must build a solution piece by piece, and undo when it fails.'
+  - 'Constraint satisfaction: N-Queens, Sudoku, word search on a grid.'
+  - 'The answer is a <em>set of solutions</em>, not a single number.'
+complexity: 'O(2ⁿ) subsets · O(n!) permutations'
+template: code/backtracking.py
+anchors:
+  - subsets
+  - combination-sum
+  - n-queens
+related:
+  - divide-and-conquer
+  - graph-traversal
+  - dp-advanced
+  - bit-manipulation
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Choose, explore, un-choose. Every problem in this category is those three
+lines wrapped in a loop.
+
+<Snippet file="code/backtracking.py" symbol="subsets" title="The template" />
+
+What varies is only:
+
+- **Where you record an answer.** Subsets record at *every* node; permutations
+  record only at leaves.
+- **Where the loop starts.** `start` (combinations, order irrelevant) or 0
+  with a `used` array (permutations, order matters).
+- **What you prune.** This is the part that decides whether it passes.
+
+`path[:]` matters. Appending `path` itself stores a reference that the next
+`pop()` mutates, so every entry in the result ends up empty. It is a one-
+character bug with a spectacular failure mode.
+
+## The two dedup rules, which are not interchangeable
+
+This trips people up more than the recursion does.
+
+**Duplicate values in the input** — sort, then skip repeats at the same depth:
+
+<Snippet file="code/backtracking.py" symbol="subsets_with_duplicates" title="Skip repeated values at the same level" />
+
+The condition is `i > start`, not `i > 0`. The first occurrence at each level
+must be allowed through; only the second and later are duplicates *of a choice
+already made at this depth*. Writing `i > 0` silently drops valid answers.
+
+**Each index used once** — that is the `used` array in `permutations`, and it
+is a different mechanism for a different problem. If the input has duplicates
+*and* order matters, you need both.
+
+## Pruning is the whole game
+
+<Snippet file="code/backtracking.py" symbol="combination_sum" title="Sort to enable an early break" />
+
+Two prunings here, and the sort is what enables the second:
+
+- `if candidates[i] > remaining: break` — on sorted input, everything after is
+  also too big, so `break` rather than `continue`.
+- Passing `i` instead of `i + 1` permits reuse. That single character is the
+  entire difference from the subsets template.
+
+<Snippet file="code/backtracking.py" symbol="solve_n_queens" title="O(1) conflict checks" />
+
+N-Queens is where pruning becomes structural. Scanning the board to test a
+placement is O(n) per attempt; three sets make it O(1).
+
+The observation that does it: on a `\` diagonal, `row - col` is constant. On a
+`/` diagonal, `row + col` is constant. So a diagonal is just an integer key.
+Deriving that on the whiteboard — rather than recalling it — is what the
+question is really testing.
+
+## Pitfalls
+
+- **`path` instead of `path[:]`.**
+- **Forgetting to un-choose.** Every `append` needs its `pop`, every `add`
+  its `discard`. Write them as a pair, immediately.
+- **`i > 0` instead of `i > start`** in the dedup.
+- **Not sorting** before a dedup-by-adjacency, which then does nothing.
+- **Claiming a complexity that ignores the copy.** Subsets is O(n · 2ⁿ), not
+  O(2ⁿ), because each of the 2ⁿ answers costs O(n) to copy out.
+- **Backtracking when DP applies.** If the question asks *how many* or *what
+  is the best*, and subproblems repeat, it is [DP](../dp-1d/). Backtracking
+  is for enumerating the solutions themselves.
+
+## Anchor walkthroughs
+
+### Subsets
+
+**Clarify.** Are values distinct? (If not, it is Subsets II and needs the
+dedup.) Does the output order matter? Must the empty subset be included?
+(Yes.)
+
+**Why it is asked.** It is the template in its purest form, and the
+interviewer wants to see the choose/explore/un-choose rhythm written without
+hesitation.
+
+**Two solutions worth having.** The recursive one above, and the
+[bitmask](../bit-manipulation/) one: count from 0 to 2ⁿ − 1 and read each
+integer as a membership set. Offering the second shows you see the
+correspondence between subsets and binary numbers.
+
+**Complexity.** 2ⁿ subsets, each costing O(n) to copy: O(n · 2ⁿ).
+
+**Follow-up:** Subsets II, which is exactly the dedup rule above.
+
+### Combination Sum
+
+**Clarify.** May a number be reused without limit? (Yes — Combination Sum II
+says no, and that is the `i` versus `i + 1` difference.) Are candidates
+distinct? Positive? (Positivity is what makes the `break` sound — with
+negatives there is no monotone cutoff and the search may not terminate.)
+
+**The insight.** A search tree where each node either takes the current
+candidate again or moves on. Sorting enables the early break.
+
+**Dry-run** `[2,3,6,7]`, target 7. Take 2 → remaining 5 → take 2 → remaining 3
+→ take 2 fails (2 > ... no, 2 ≤ 3) → take 2 → remaining 1, then 2 > 1 so
+break, and 3 > 1 so this branch dies. Back up: 2,2,3 sums to 7 ✓. Eventually
+7 alone ✓. Result `[[2,2,3],[7]]`.
+
+**Follow-up:** Combination Sum II — each candidate used once, and duplicates
+in the input. Now you need *both* `i + 1` and the sorted-skip dedup, which is
+a good demonstration that the two rules are independent.
+
+### N-Queens
+
+**Clarify.** Return the boards or just the count? (N-Queens II wants the
+count, which lets you skip building strings.) Is n small? (n ≤ 9.)
+
+**The structure.** One queen per row by construction, so the recursion is over
+rows and the loop is over columns. Saying that first removes half the apparent
+difficulty.
+
+**The three sets.** Derive `row - col` and `row + col` out loud. If you cannot
+recall which is which, place two queens on a 3×3 board and check.
+
+**Complexity.** Roughly O(n!) with the pruning — far better than n^n, and the
+pruning is why. Be honest that the exact bound is hard to state; "bounded by
+n! and much better in practice due to the constraint propagation" is the
+right level of precision.
+
+**Follow-up:** Sudoku Solver, which is the same skeleton with three
+constraint sets (row, column, 3×3 box) and a "find the next empty cell"
+step. If you can write N-Queens cleanly, Sudoku is transcription.

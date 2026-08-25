@@ -1,0 +1,171 @@
+---
+id: dp-grid-knapsack
+title: Grid & Knapsack DP
+recognition:
+  - 'A 2-D grid with movement restricted to right and down.'
+  - '<strong>Subset sums</strong> — can I hit exactly this total, using each item once?'
+  - 'The words <strong>capacity</strong>, <strong>budget</strong>, <strong>weight limit</strong>, <strong>partition into two halves</strong>.'
+  - 'Two quantities of state — position and remaining budget.'
+  - 'n ≤ 200 and a target ≤ 10⁴ — the product is the table size, and it fits.'
+complexity: 'O(n·capacity)'
+template: code/dp_grid_knapsack.py
+anchors:
+  - unique-paths
+  - coin-change-ii
+  - maximal-square
+related:
+  - dp-1d
+  - dp-strings
+  - backtracking
+  - binary-search-answer
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+Two dimensions of state. Grids are the gentle introduction; knapsack is the
+one worth really understanding, because **the direction of the inner loop
+encodes whether items may be reused**, and that single detail separates the
+two classic variants.
+
+## Grids
+
+<Snippet file="code/dp_grid_knapsack.py" symbol="unique_paths" title="Rolling one row" />
+
+`dp[c]` is "ways to reach this column in the current row". The update
+`dp[c] += dp[c-1]` reads as *from above, plus from the left* — because when it
+executes, `dp[c]` still holds the previous row's value and `dp[c-1]` holds the
+current row's. That aliasing is deliberate, and worth explaining rather than
+leaving as a magic line.
+
+Rolling drops the space from O(rows·cols) to O(cols). Write the full 2-D table
+if it helps you think, then fold it and say why you can.
+
+<Snippet file="code/dp_grid_knapsack.py" symbol="maximal_square" title="Fixing the corner" />
+
+Maximal Square is where the state definition does all the work. `dp[r][c]` is
+the side of the largest square whose **bottom-right corner** is at (r, c).
+Fixing the corner is what makes the recurrence exist at all: a square of side
+k needs three overlapping squares of side k−1 above, to the left, and
+diagonally, so the value is `1 + min` of those three.
+
+Try defining it as "largest square anywhere in this submatrix" and there is no
+usable recurrence. Choosing the right state *is* the solve.
+
+## The direction of the inner loop
+
+<Snippet file="code/dp_grid_knapsack.py" symbol="can_partition" title="0/1 knapsack — backwards" />
+
+Partition Equal Subset Sum is a 0/1 knapsack in disguise: "split into two
+equal halves" is "can I hit exactly sum/2 using each element at most once".
+
+**The inner loop runs backwards, and that is the whole point.** Going forward
+would let the same element be used twice within a single pass — which is the
+*unbounded* knapsack, a different problem. Reversing that loop silently
+changes what you are computing.
+
+Say it as you write it: "backwards, so each item is used at most once."
+
+<Snippet file="code/dp_grid_knapsack.py" symbol="coin_change_ways" title="Unbounded — and the loop order that decides combinations vs permutations" />
+
+Here the loop runs forward (coins are reusable), and a *second* subtlety
+appears: **which loop is outside**.
+
+- **Coins outside, amounts inside** → counts **combinations**. `1+2` and `2+1`
+  are the same answer, counted once.
+- **Amounts outside, coins inside** → counts **permutations**. They are
+  counted separately.
+
+Coin Change II wants combinations; Combination Sum IV wants permutations.
+Same five lines, loops swapped. This is the single most common bug in the
+knapsack family, and being able to state the difference before writing is the
+thing that impresses.
+
+## The knapsack summary
+
+| Variant | Inner loop | What it means |
+| --- | --- | --- |
+| 0/1 (each item once) | **backwards** over capacity | Partition Equal Subset Sum, Target Sum |
+| Unbounded (reusable) | **forwards** over capacity | Coin Change, Coin Change II |
+| Combinations | items outside | order does not matter |
+| Permutations | capacity outside | order matters |
+
+## Pitfalls
+
+- **Wrong loop direction**, turning 0/1 into unbounded.
+- **Wrong loop nesting**, turning combinations into permutations.
+- **Base case.** `dp[0] = 1` for counting ways (one way to make nothing);
+  `dp[0] = 0` for minimising.
+- **`[[0] * n] * m`** aliases rows. Use a comprehension.
+- **Folding before it is correct.** Get the 2-D version right, then reduce.
+  Folding a version you have not verified is how you end up debugging two
+  things at once.
+- **Missing the obstacle case** in Unique Paths II — a blocked cell is 0 ways,
+  not "skip it".
+
+## Anchor walkthroughs
+
+### Unique Paths
+
+**Clarify.** Only right and down? Are there obstacles? (That is Unique Paths
+II.) Is the grid guaranteed at least 1×1?
+
+**State.** "`dp[r][c]` = number of ways to reach cell (r, c)."
+
+**The recurrence.** `dp[r][c] = dp[r-1][c] + dp[r][c-1]` — you arrive from
+above or from the left, and those sets of paths are disjoint. Disjointness is
+why it is a plain sum and worth one sentence.
+
+**Base case.** The first row and column are all 1: exactly one path along the
+edge.
+
+**Then the fold**, and then, if you want to finish strongly: this is a
+combinatorics problem. You make `(m-1) + (n-1)` moves, choosing which are
+downward, so the answer is `C(m+n-2, m-1)` in O(min(m,n)) time and O(1) space.
+Offering the closed form after the DP is a nice close.
+
+**Follow-up:** Unique Paths II, obstacles. Set blocked cells to 0 and carry
+on — but note the first row/column base case now stops at the first obstacle,
+which is the part that breaks naive adaptations.
+
+### Coin Change II
+
+**Clarify.** Combinations or permutations? (Combinations — confirm it
+explicitly, because it decides the loop order.) Unlimited supply? Can the
+amount be 0? (One way: take nothing.)
+
+**State.** "`dp[a]` = number of combinations summing to a."
+
+**The loop order conversation.** Say it before coding: "I'll put coins on the
+outside so that each combination is counted once — if I swapped the loops I'd
+count permutations, which is Combination Sum IV."
+
+**Dry-run** `coins=[1,2,5], amount=5` → 4: `5`, `2+2+1`, `2+1+1+1`,
+`1×5`. Then mentally swap the loops and note you would get 9, which is the
+permutation count. Demonstrating both is the strongest version of this answer.
+
+**Base case.** `dp[0] = 1`.
+
+### Maximal Square
+
+**Clarify.** Return the area or the side length? (Area — square the side, and
+forgetting is a silent wrong answer.) Are the entries characters or integers?
+(Characters `'0'`/`'1'` on LeetCode, which catches people comparing to `0`.)
+
+**The state definition is the solve**, as described above. Spend your first
+minute on it rather than on code.
+
+**Why `min` of three:** all three of the upper, left, and diagonal squares
+must be at least k−1 for a square of side k to close at this corner. The
+smallest of them is the binding constraint.
+
+**Dry-run** a 2×2 block of ones: each corner cell computes `1 + min(1,1,1) =
+2`, giving area 4. Then break one of the three and watch it collapse back to
+1 — that is the `min` doing its job.
+
+**Follow-up:** Maximal Rectangle, which is *not* an extension of this. It is
+solved by treating each row as a histogram and running Largest Rectangle in
+Histogram per row — see [Monotonic Stack](../monotonic-stack/). Knowing that
+the square and rectangle versions need completely different techniques is the
+useful fact.

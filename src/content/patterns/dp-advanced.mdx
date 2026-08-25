@@ -1,0 +1,181 @@
+---
+id: dp-advanced
+title: Advanced DP
+recognition:
+  - '<strong>n ≤ 20.</strong> Almost always a bitmask over subsets.'
+  - 'A <em>mode</em> alongside the index — holding a stock, on cooldown, k transactions left.'
+  - 'The answer depends on an <strong>interval</strong>, not a prefix.'
+  - 'DP over a tree, where a node''s answer depends on whether its parent was taken.'
+  - 'Two players alternating, both playing optimally — game theory.'
+complexity: 'O(2ⁿ·n) bitmask · O(n³) interval'
+template: code/dp_advanced.py
+anchors:
+  - best-time-to-buy-and-sell-stock-with-cooldown
+  - burst-balloons
+  - house-robber-iii
+related:
+  - dp-1d
+  - dp-grid-knapsack
+  - backtracking
+  - bit-manipulation
+---
+
+import Snippet from '../../components/Snippet.astro'
+
+## The idea
+
+These all share one thing: **the state is richer than an index.** It might be
+an index plus a mode, a set of visited nodes packed into an integer, an
+interval rather than a prefix, or a node in a tree.
+
+The recognition rule that carries the most weight: **`n ≤ 20` means bitmask.**
+Nothing else lets you afford 2ⁿ states, and no other constraint is that
+specific. When you see it, start thinking about what subset the mask
+represents.
+
+## State machines
+
+<Snippet file="code/dp_advanced.py" symbol="max_profit_with_cooldown" title="Three states, named" />
+
+The stock problems are all the same technique: **draw the state machine
+first**. Three nodes — holding, just sold, resting — and the arrows between
+them. Once the diagram is on the whiteboard, the code is transcription.
+
+This is worth doing literally. Candidates who try to reason about the stock
+problems in prose get lost; candidates who draw three circles and four arrows
+finish in five minutes. The same approach handles the k-transaction variants,
+where the state gains a "transactions remaining" dimension.
+
+## Interval DP
+
+<Snippet file="code/dp_advanced.py" symbol="burst_balloons" title="Ask which one is burst last" />
+
+Burst Balloons is the classic, and it is a *reframing* problem rather than a
+recurrence problem.
+
+The natural attempt is to iterate over which balloon to burst **first**. It
+fails, because bursting it changes the neighbours of everything else — the
+subproblems are not independent.
+
+Ask instead which balloon in an interval is burst **last**. Then its
+neighbours are exactly the interval's fixed boundaries, and the two sides
+become genuinely independent subproblems. That inversion is the entire
+solution.
+
+Padding with 1s at both ends removes every boundary special case, which is a
+trick worth carrying to other interval problems.
+
+O(n³): O(n²) intervals, each scanning O(n) split points.
+
+## DP on trees
+
+<Snippet file="code/dp_advanced.py" symbol="rob_tree" title="Return a pair, not a number" />
+
+The tree-DP idiom: **each node returns a pair** — the best if this node is
+taken, and the best if it is not.
+
+A single number cannot work, because the parent's decision depends on whether
+the child was taken. That is the same structural insight as
+[diameter](../binary-trees/), where the recursion returns depth while the
+answer accumulates separately: when what the parent needs differs from what
+the problem asks, return the former.
+
+## Bitmask
+
+<Snippet file="code/dp_advanced.py" symbol="shortest_path_all_nodes" title="A set as an integer" />
+
+The state is `(current node, set of nodes visited)`, and the set is an
+integer. n·2ⁿ states — at n = 12, that is 49,152, which is nothing.
+
+This is a BFS rather than a table because every edge costs 1, but the state
+space is the DP idea: **visiting the same node with a different set of
+already-visited nodes is a genuinely different situation**, and collapsing
+them loses the answer.
+
+## Game theory
+
+<Snippet file="code/dp_advanced.py" symbol="stone_game" title="Track the difference, not two scores" />
+
+The idiom that makes minimax problems short: define the state as the
+**difference** in scores rather than two separate totals. Then the opponent's
+turn is a subtraction, and you need no whose-turn-is-it flag.
+
+`best(i, j)` is how far ahead the player to move can get from the interval
+`[i, j]`. Positive at the root means the first player wins.
+
+## Pitfalls
+
+- **Missing the `n ≤ 20` tell** and attempting a polynomial algorithm that
+  does not exist.
+- **Iterating over the first move** in interval DP instead of the last.
+- **Returning one number from a tree DP.**
+- **Bitmask off-by-one.** `1 << n` is the number of subsets; the full mask is
+  `(1 << n) - 1`. Write both down.
+- **`@cache` on a recursion of depth 10⁵.** Fine at n ≤ 20; not fine in
+  general.
+- **Claiming polynomial complexity for an exponential algorithm.** O(2ⁿ·n) is
+  the honest bound for bitmask DP, and it is *fine* — the constraint said so.
+
+## Anchor walkthroughs
+
+### Best Time to Buy and Sell Stock with Cooldown
+
+**Clarify.** How long is the cooldown? (One day.) Can I hold more than one
+share? (No.) Are transaction fees involved? (A different variant.) Must I sell
+before the end?
+
+**Draw the state machine.** Three states, and the transitions: from *resting*
+you may buy (→ holding) or rest; from *holding* you may sell (→ sold) or hold;
+from *sold* you must rest (→ resting). Four arrows.
+
+**Then the code is transcription.** Keep one variable per state, update all
+three from the previous day's values — and note that you must save the
+previous `sold` before overwriting it, or the cooldown collapses.
+
+**Dry-run** `[1,2,3,0,2]` → 3. Buy at 1, sell at 2 (profit 1), cooldown at 3,
+buy at 0, sell at 2 (profit 2). Total 3.
+
+**Follow-up:** with a transaction fee, or with at most k transactions. Both
+are the same machine with an extra dimension, and saying so immediately is the
+signal.
+
+### Burst Balloons
+
+**Clarify.** Are the boundaries treated as 1? (Yes — that is the padding.) Can
+the array be empty? Are values non-negative?
+
+**Show the failed attempt first.** "If I iterate over which balloon to burst
+first, the subproblems share mutated neighbours and aren't independent." Then
+invert it. Demonstrating why the obvious framing fails is what makes the
+inversion look like reasoning rather than recall.
+
+**State.** "`dp[left][right]` = the most coins obtainable from strictly
+between left and right, with both boundaries still intact."
+
+**The recurrence.** For each `last` in the open interval, the coins from
+bursting it last are `balloons[left] * balloons[last] * balloons[right]`,
+because by then everything else in the interval is gone.
+
+**Complexity.** O(n³) time, O(n²) space. At n = 300 that is 2.7·10⁷ —
+comfortable, and the constraint confirms the intent.
+
+**Dry-run** `[3,1,5,8]` → 167 on a small interval to show the boundary
+multiplication.
+
+### House Robber III
+
+**Clarify.** Is it a binary tree? Are values non-negative? Is the constraint
+exactly "no two directly-linked houses"?
+
+**The insight.** Post-order traversal returning `(robbed, skipped)`.
+
+**Why not a single value:** if a node returned only its best, the parent could
+not tell whether that best involved robbing the child — and it needs to know.
+Say this before writing; it is the whole design decision.
+
+**Dry-run** a root of 3 with children 2 and 3, and a grandchild 1 under the 2.
+Robbing the root forces skipping both children but allows the grandchild:
+3 + 1 = 4. Skipping the root allows both children: 2 + 3 = 5. Answer 5.
+Working the arithmetic both ways is what proves the pair is necessary.
+
+**Complexity.** O(n), one visit per node.
