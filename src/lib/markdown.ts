@@ -98,6 +98,15 @@ export function markdownToHtml(markdown: string): string {
       continue
     }
 
+    // A non-bullet line while a list is open is a *continuation* of the last
+    // item — the prose is hard-wrapped, so bullets routinely span several
+    // lines. Closing the list here would push the tail out as its own
+    // paragraph, unindented and visually detached from its bullet.
+    if (list.length && !paragraph.length) {
+      list[list.length - 1] = `${list[list.length - 1]} ${line.trim()}`
+      continue
+    }
+
     flushList()
     paragraph.push(line.trim())
   }
