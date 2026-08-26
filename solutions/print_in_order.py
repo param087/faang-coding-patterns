@@ -105,19 +105,27 @@ class Foo:
 CASES: list[tuple[tuple, object]] = []
 
 
+def _run_once() -> list[str]:
+    """One trial, with the threads deliberately started in the wrong order.
+
+    Extracted into its own function so each lambda closes over *this* call's
+    `output` rather than over a loop variable that later iterations rebind.
+    """
+    output: list[str] = []
+    foo = Foo()
+    threads = [
+        threading.Thread(target=foo.third, args=(lambda: output.append("third"),)),
+        threading.Thread(target=foo.second, args=(lambda: output.append("second"),)),
+        threading.Thread(target=foo.first, args=(lambda: output.append("first"),)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    return output
+
+
 def check() -> None:
     # Run it repeatedly: a single pass could be scheduling luck.
     for _ in range(20):
-        output: list[str] = []
-        foo = Foo()
-        # Deliberately started in the wrong order.
-        threads = [
-            threading.Thread(target=foo.third, args=(lambda: output.append("third"),)),
-            threading.Thread(target=foo.second, args=(lambda: output.append("second"),)),
-            threading.Thread(target=foo.first, args=(lambda: output.append("first"),)),
-        ]
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join(timeout=5)
-        assert output == ["first", "second", "third"], output
+        assert _run_once() == ["first", "second", "third"]
