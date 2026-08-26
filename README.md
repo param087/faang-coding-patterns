@@ -29,10 +29,10 @@ grid of patterns reads as a distribution of what things cost.
 | | |
 | --- | --- |
 | Patterns | 39, in 8 groups, each with recognition cues, a tested template, pitfalls and anchor walkthroughs |
-| Curated problems | 539 hand-assigned across the patterns (core + stretch) |
+| Curated problems | 539 hand-assigned across the patterns (core + stretch), every one solved |
 | Indexed problems | 3,719 auto-classified, filterable |
 | Companies | 659, with per-problem frequency across 5 time windows |
-| Solutions | full commented Python, one module per problem, all pytest-verified |
+| Solutions | **539** — one tested Python module per catalogued problem, with the write-up in the same file |
 
 ## Data sources
 
